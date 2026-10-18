@@ -18,7 +18,7 @@ export async function answerEmail(input: {
   caseFile: CaseFile;
   work: Work[];
   domain: string;
-}): Promise<string> {
+}): Promise<{ text: string; nextStep: string; sections: { agent: Agent; section: string | null }[] }> {
   const { email, student, body, caseFile, work, domain } = input;
   const deadline = AbortSignal.timeout(SECTION_DEADLINE_MS);
 
@@ -58,7 +58,11 @@ export async function answerEmail(input: {
     }
   }
 
-  return [nextStep, ...signed, "Halden University, Campus Desk"].join("\n\n");
+  return {
+    text: [nextStep, ...signed, "Halden University, Campus Desk"].join("\n\n"),
+    nextStep,
+    sections: sorted.map(({ agent, section }) => ({ agent, section })),
+  };
 }
 
 // The saved section is the agent's post on the case's internal thread (shown on the dashboard).

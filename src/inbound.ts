@@ -9,6 +9,7 @@ import { handleStaffReply } from "./escalation";
 import { createMemory } from "./memory";
 import { mail } from "./primitive";
 import { routeEmail } from "./router";
+import { buildStructuredReply, structuredBlock, wantsStructuredReply } from "./structured";
 
 const SEVEN_DAYS = 7 * 24 * 60 * 60;
 
@@ -67,7 +68,30 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     `[case] ${sender}: email ${caseFile.emails.length} on file, ${documents.length} document(s) read, tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`,
   );
 
-  const text = await answerEmail({ email, student: sender, body, caseFile, work, domain: ourDomain });
+  const answer = await answerEmail({ email, student: sender, body, caseFile, work, domain: ourDomain });
+
+  // Facts from this email (e.g. "the account is my father's") can change what's required.
+  const updated = await refreshChecklist(sender);
+  const open = updated.checklist.filter((i) => i.status !== "received" && i.status !== "not_needed");
+  console.log(`[checklist] ${sender}: ${updated.checklist.map((i) => `${i.item}=${i.status}`).join(", ")}`);
+
+  // An AI agent writing for the student can ask for a reply it can parse.
+  let text = answer.text;
+  let attachments: { filename: string; content_type: string; content_base64: string }[] | undefined;
+  if (wantsStructuredReply(email.subject, body)) {
+    const json = await buildStructuredReply({ sections: answer.sections, nextStep: answer.nextStep, caseFile: updated, domain: ourDomain });
+    text = `${text}\n\n${structuredBlock(json)}`;
+    attachments = [
+      {
+        filename: "campus-desk-reply.json",
+        content_type: "application/json",
+        content_base64: Buffer.from(JSON.stringify(json, null, 2)).toString("base64"),
+      },
+    ];
+    console.log(
+      `[structured] ${sender}: ${json.deadlines.length} deadlines, ${json.requirements.length} requirements, ${json.amounts.length} amounts, ${json.missing_items.length} missing items`,
+    );
+  }
 
   if (dryRun) {
     console.log(`[dry-run] ${agent}@ -> ${sender} after ${Date.now() - startedAt} ms:\n${text}`);
@@ -75,16 +99,11 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     // The key makes a webhook retry of this event return the first reply instead of sending a second.
     await mail().reply(
       email,
-      { text, from: `"Halden University" <${recipient}>` },
+      { text, from: `"Halden University" <${recipient}>`, ...(attachments ? { attachments } : {}) },
       { idempotencyKey: `${email.eventId}:${agent}:answer` },
     );
     console.log(`[reply] ${agent}@ -> ${sender}: first reply in ${Date.now() - startedAt} ms`);
   }
-
-  // Facts from this email (e.g. "the account is my father's") can change what's required.
-  const updated = await refreshChecklist(sender);
-  const open = updated.checklist.filter((i) => i.status !== "received" && i.status !== "not_needed");
-  console.log(`[checklist] ${sender}: ${updated.checklist.map((i) => `${i.item}=${i.status}`).join(", ")}`);
 
   // After ask@'s first answer, counselor@ starts its own thread listing what's still missing.
   if (agent === "ask" && open.length > 0) {

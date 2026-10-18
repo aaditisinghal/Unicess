@@ -39,6 +39,7 @@ src/
   checklist.ts     checklist computed from documents and facts, no model call           (step 5)
   counselor.ts     counselor@'s missing-items email after ask@'s first reply             (step 5)
   escalation.ts    draft to staff, APPROVE handling                                     (step 5)
+  structured.ts    JSON block + .json attachment when an email asks for a structured reply (step 6)
   events.ts        in-process event log the dashboard polls                             (step 7)
 public/dashboard.html                                                                   (step 7)
 scripts/
