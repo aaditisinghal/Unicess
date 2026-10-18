@@ -454,6 +454,7 @@ public/
   portal.html        University staff portal (/portal)
   dashboard.html     The live demo dashboard (/live); every page is one file, no build step
   logo.svg           Logo and favicon
+web/                 The marketing landing page as a Next.js 16 app (Tailwind v4, GSAP, Lenis), deployed to Vercel
 scripts/             demo, replay, reset, whoami, make-fixtures
 fixtures/            Synthetic PDFs, webhook template, recorded run
 test/                Unit tests

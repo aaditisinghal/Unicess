@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* Two surfaces, one set of names: paper for the record, ink for the live parts.
+   An .ink section re-points the same tokens, so every utility reads correctly on either. */
+:root {
+  --paper: #f4f2ec;
+  --panel: #fbfaf6;
+  --rule: #dcd8cc;
+  --rule-strong: #bdb8aa;
+  --ink: #16150f;
+  --ink2: #3b392f;
+  --muted: #6a665a;
+  --faint: #969184;
+  --accent: #0b6e4f;
+  --accent-ink: #f4f2ec;
+  --signal: #c2410c;
+  --bad: #b42318;
+  --warn: #96600a;
+  --ask: #3f3d35;
+  --admissions: #1f5fa8;
+  --intl: #0f766e;
+  --finaid: #b45309;
+  --housing: #4d7c0f;
+  --counselor: #be123c;
+}
+.ink {
+  --paper: #0e0e0b;
+  --panel: #151511;
+  --rule: #2b2a23;
+  --rule-strong: #444137;
+  --ink: #f4f2ec;
+  --ink2: #d9d5c9;
+  --muted: #a29d90;
+  --faint: #78736a;
+  --accent: #3ccf91;
+  --accent-ink: #0e0e0b;
+  --signal: #ff8a4c;
+  --bad: #f87171;
+  --warn: #f0b84a;
+  --ask: #d9d5c9;
+  --admissions: #6aa8ec;
+  --intl: #2dc4b4;
+  --finaid: #f5a623;
+  --housing: #9ccc4a;
+  --counselor: #fb7192;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-signal: var(--signal);
+  --color-bad: var(--bad);
+  --color-warn: var(--warn);
+  --color-ask: var(--ask);
+  --color-admissions: var(--admissions);
+  --color-intl: var(--intl);
+  --color-finaid: var(--finaid);
+  --color-housing: var(--housing);
+  --color-counselor: var(--counselor);
+  --font-sans: var(--font-geist), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  font-feature-settings: "ss01";
+}
+
+/* Hidden until GSAP reveals it; the .js class is set before paint, so no-JS visitors see everything. */
+.js [data-reveal],
+.js [data-word] {
+  visibility: hidden;
+}
+
+/* The arrow inside Start nudges forward on hover. */
+.go {
+  position: relative;
+  width: 14px;
+  height: 2px;
+  background: currentColor;
+  transition: transform 0.2s ease;
+}
+.go::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+a:hover > .go {
+  transform: translateX(4px);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+.blink {
+  animation: blink 1s steps(1) infinite;
+}
