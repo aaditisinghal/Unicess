@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus Desk</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #14161a; --muted: #5d6470; --line: #e3e6eb; --soft: #f0f2f5;
+    --good: #12805c; --good-bg: #e3f5ee; --bad: #c0392b; --bad-bg: #fbe9e7; --warn: #9a6400; --warn-bg: #fdf1dc;
+    --info: #2756c5; --info-bg: #e7eefc;
+    --ask: #4b5563; --admissions: #4f46e5; --intl: #0f8a8a; --finaid: #b7791f; --housing: #7c3aed; --counselor: #d63864;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #171a21; --ink: #eef0f3; --muted: #9aa3b1; --line: #2a2f3a; --soft: #1e222b;
+      --good: #46c99a; --good-bg: #123328; --bad: #f2786b; --bad-bg: #3a1d1a; --warn: #f2b84b; --warn-bg: #352812;
+      --info: #7ea4ff; --info-bg: #18233d;
+      --ask: #9aa3b1; --admissions: #8b87ff; --intl: #3cc7c7; --finaid: #e6ad4e; --housing: #b48cff; --counselor: #ff7aa2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px 10px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 14px; }
+  .live { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 0 var(--good); animation: pulse 2s infinite; }
+  .dot.off { background: var(--bad); animation: none; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 60%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .addresses { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 28px 14px; }
+  .addr { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+  .addr b { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 600; }
+  .addr span { color: var(--muted); }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding: 0 28px 16px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .tile .label { color: var(--muted); font-size: 13px; }
+  .tile .value { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .note { color: var(--muted); font-size: 12.5px; }
+  .tile.hero .value { color: var(--good); }
+  main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; padding: 0 28px 28px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+  .panel > h2 { margin: 0; padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+  .panel > h2 small { color: var(--muted); font-weight: 400; }
+  .feed { list-style: none; margin: 0; padding: 4px 0; max-height: calc(100vh - 300px); min-height: 320px; overflow-y: auto; }
+  .feed li { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--soft); }
+  .feed li.fresh { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: var(--info-bg); } to { background: transparent; } }
+  .time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .row1 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .text { margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .who { color: var(--muted); font-size: 12px; }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--soft); color: var(--muted); text-transform: lowercase; }
+  .tag.inbound { background: var(--info-bg); color: var(--info); }
+  .tag.reply, .tag.approval { background: var(--good-bg); color: var(--good); }
+  .tag.escalation, .tag.model_fallback { background: var(--warn-bg); color: var(--warn); }
+  .tag.missed { background: var(--bad-bg); color: var(--bad); }
+  .agent { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; font-weight: 600; }
+  .tabs { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
+  .tabs button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+  .tabs button.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .case { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; }
+  .case section { padding: 12px 16px; min-width: 0; }
+  .case section + section { border-left: 1px solid var(--line); }
+  h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0 0 14px; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .check { list-style: none; margin: 0 0 14px; padding: 0; }
+  .check li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--soft); font-size: 14px; }
+  .check .due { color: var(--muted); font-size: 12.5px; }
+  .pill { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; align-self: center; }
+  .pill.received { background: var(--good-bg); color: var(--good); }
+  .pill.missing { background: var(--bad-bg); color: var(--bad); }
+  .pill.if_parent { background: var(--warn-bg); color: var(--warn); }
+  .pill.not_needed { background: var(--soft); color: var(--muted); }
+  .docs { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  .docs li { padding: 6px 0; border-bottom: 1px solid var(--soft); }
+  .thread { list-style: none; margin: 0; padding: 4px 16px 14px; max-height: calc(100vh - 560px); min-height: 220px; overflow-y: auto; border-top: 1px solid var(--line); }
+  .post { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: 10px 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; }
+  .bubble { background: var(--soft); border-radius: 4px 12px 12px 12px; padding: 8px 12px; }
+  .bubble .meta { display: flex; gap: 8px; align-items: center; margin-bottom: 3px; flex-wrap: wrap; }
+  .bubble p { margin: 0; white-space: pre-wrap; }
+  .empty { color: var(--muted); padding: 24px 16px; text-align: center; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .feed, .thread { max-height: 420px; } }
+  @media (max-width: 640px) { header, .addresses, .metrics, main { padding-left: 16px; padding-right: 16px; } .case { grid-template-columns: 1fr; } .case section + section { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Halden University · Campus Desk</h1>
+    <div class="sub">A team of email agents on Primitive. Every address shares one file per student.</div>
+  </div>
+  <div class="live"><span class="dot" id="dot"></span><span id="status">connecting…</span></div>
+</header>
+<div class="addresses" id="addresses"></div>
+<div class="metrics">
+  <div class="tile hero"><div class="label">Time to first reply</div><div class="value" id="m-last">–</div><div class="note" id="m-median">median –</div></div>
+  <div class="tile"><div class="label">Answered without a human</div><div class="value" id="m-auto">–</div><div class="note" id="m-auto-note">of – replies</div></div>
+  <div class="tile"><div class="label">Agent handoffs</div><div class="value" id="m-handoffs">0</div><div class="note">tasks from ask@ splits</div></div>
+  <div class="tile"><div class="label">Checklist items cleared</div><div class="value" id="m-cleared">0</div><div class="note">documents received across cases</div></div>
+</div>
+<main>
+  <div class="panel">
+    <h2>Live feed <small id="count">0 events</small></h2>
+    <ul class="feed" id="feed"><li class="empty" style="display:block">Waiting for the first email…</li></ul>
+  </div>
+  <div class="panel">
+    <h2>Student file <small id="case-updated"></small></h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="case" id="case"><div class="empty" style="grid-column: 1 / -1">No students yet.</div></div>
+    <h2 style="border-top: 1px solid var(--line)">Internal thread <small>what each agent posted</small></h2>
+    <ul class="thread" id="thread"></ul>
+  </div>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get("token") || "";
+const AGENTS = [
+  ["ask", "Front desk"], ["admissions", "Admissions"], ["intl", "International"],
+  ["finaid", "Financial aid"], ["housing", "Housing"], ["counselor", "Counselor"],
+];
+const FACTS = [
+  ["student_name", "Name"], ["country", "Country"], ["term", "Term"], ["stage", "Stage"],
+  ["funds_shown_usd", "Funds shown"], ["funds_account_holder_name", "Account holder"],
+  ["account_relationship", "Holder is"], ["funds_statement_date", "Statement date"], ["english_test", "English test"],
+];
+const STATUS_LABEL = { received: "received", missing: "missing", if_parent: "if parent's account", not_needed: "not needed" };
+let since = 0, events = [], cases = [], selected = null, domain = null;
+
+const $ = (id) => document.getElementById(id);
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v; else if (k === "style") node.style.cssText = v; else node.setAttribute(k, v);
+  }
+  for (const c of children) if (c != null) node.append(c);
+  return node;
+}
+const color = (agent) => `var(--${AGENTS.some(([a]) => a === agent) ? agent : "ask"})`;
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const seconds = (ms) => (ms == null ? "–" : `${(ms / 1000).toFixed(1)} s`);
+
+function renderAddresses() {
+  const box = $("addresses");
+  box.replaceChildren(...AGENTS.map(([a, role]) => el("span", { class: "addr" },
+    el("b", { style: `color:${color(a)}` }, `${a}@${domain ?? "…"}`), el("span", {}, role))));
+}
+
+function renderMetrics(m) {
+  $("m-last").textContent = seconds(m.lastReplyMs);
+  $("m-median").textContent = `median ${seconds(m.medianReplyMs)} · ${m.replies} repl${m.replies === 1 ? "y" : "ies"}`;
+  $("m-auto").textContent = m.replies ? `${m.repliesWithoutHuman}` : "–";
+  $("m-auto-note").textContent = `of ${m.replies} repl${m.replies === 1 ? "y" : "ies"}`;
+  $("m-handoffs").textContent = m.handoffs;
+  $("m-cleared").textContent = m.itemsCleared;
+}
+
+function tagFor(e) {
+  if (e.type === "post") return e.data?.status === "missed" ? ["missed", "missed"] : e.data?.status === "waiting_on_human" ? ["escalation", "needs human"] : ["posted", "posted"];
+  return [e.type, e.type.replace("_", " ")];
+}
+
+function renderFeed(fresh) {
+  const feed = $("feed");
+  if (!events.length) return;
+  const items = events.slice(-200).reverse().map((e) => {
+    const [cls, label] = tagFor(e);
+    return el("li", { class: fresh.has(e.id) ? "fresh" : "" },
+      el("div", { class: "time" }, clock(e.at)),
+      el("div", {},
+        el("div", { class: "row1" },
+          el("span", { class: `tag ${cls}` }, label),
+          e.agent ? el("span", { class: "agent", style: `color:${color(e.agent)}` }, `${e.agent}@`) : null,
+          e.student ? el("span", { class: "who" }, e.student) : null),
+        el("div", { class: "text" }, e.text)));
+  });
+  feed.replaceChildren(...items);
+  $("count").textContent = `${events.length} event${events.length === 1 ? "" : "s"}`;
+}
+
+function renderTabs() {
+  const ordered = [...cases].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (!selected && ordered.length) selected = ordered[0].student;
+  $("tabs").replaceChildren(...ordered.map((c) => {
+    const b = el("button", { class: c.student === selected ? "on" : "", type: "button" }, c.facts?.student_name ? `${c.facts.student_name} · ${c.student}` : c.student);
+    b.onclick = () => { selected = c.student; renderCase(); renderTabs(); };
+    return b;
+  }));
+}
+
+function formatFact(key, value) {
+  if (key === "funds_shown_usd" && typeof value === "number") return `$${value.toLocaleString("en-US")}`;
+  return String(value);
+}
+
+function renderCase() {
+  const c = cases.find((x) => x.student === selected);
+  if (!c) return;
+  $("case-updated").textContent = `updated ${clock(c.updatedAt)}`;
+  const facts = FACTS.filter(([k]) => c.facts?.[k] != null && c.facts[k] !== "");
+  const factList = facts.length
+    ? el("dl", {}, ...facts.flatMap(([k, label]) => [el("dt", {}, label), el("dd", {}, formatFact(k, c.facts[k]))]))
+    : el("div", { class: "who" }, "Nothing learned yet.");
+  const checklist = (c.checklist ?? []).length
+    ? el("ul", { class: "check" }, ...c.checklist.map((i) => el("li", {},
+        el("div", {}, el("div", {}, i.label), el("div", { class: "due" }, `due ${i.deadline}`)),
+        el("span", { class: `pill ${i.status}` }, STATUS_LABEL[i.status] ?? i.status))))
+    : el("div", { class: "who" }, "No checklist yet.");
+  const docs = (c.documents ?? []).length
+    ? el("ul", { class: "docs" }, ...c.documents.map((d) => el("li", {}, el("b", {}, d.filename), " · ", d.summary)))
+    : el("div", { class: "who" }, "No documents yet.");
+  $("case").replaceChildren(
+    el("section", {}, el("h3", {}, "What the agents know"), factList,
+      el("h3", {}, `Emails on file (${c.emails.length})`),
+      el("ul", { class: "docs" }, ...c.emails.slice(-5).reverse().map((m) => el("li", {}, el("b", {}, m.to.split("@")[0] + "@"), " · ", m.subject ?? "(no subject)")))),
+    el("section", {}, el("h3", {}, "Application checklist"), checklist, el("h3", {}, "Documents"), docs));
+  renderThread();
+}
+
+const THREAD_TYPES = new Set(["route", "post", "reply", "counselor", "escalation", "approval", "document"]);
+function renderThread() {
+  const items = events.filter((e) => e.student === selected && THREAD_TYPES.has(e.type)).slice(-40);
+  const box = $("thread");
+  if (!items.length) { box.replaceChildren(el("li", { class: "empty" }, "No posts yet.")); return; }
+  box.replaceChildren(...items.map((e) => {
+    const agent = e.agent ?? "ask";
+    const [cls, label] = tagFor(e);
+    return el("li", { class: "post" },
+      el("div", { class: "avatar", style: `background:${color(agent)}` }, agent.slice(0, 2).toUpperCase()),
+      el("div", { class: "bubble" },
+        el("div", { class: "meta" },
+          el("span", { class: "agent", style: `color:${color(agent)}` }, `${agent}@`),
+          el("span", { class: `tag ${cls}` }, label),
+          el("span", { class: "who" }, clock(e.at))),
+        el("p", {}, e.text)));
+  }));
+  box.scrollTop = box.scrollHeight;
+}
+
+async function poll() {
+  try {
+    const res = await fetch(`/api/state?since=${since}&token=${encodeURIComponent(token)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status === 401 ? "bad token: open the link from the server log" : `HTTP ${res.status}`);
+    const state = await res.json();
+    if (state.lastId < since) { events = []; since = 0; return poll(); } // the server restarted
+    const fresh = new Set(state.events.map((e) => e.id));
+    events.push(...state.events);
+    if (events.length > 600) events = events.slice(-600);
+    since = state.lastId;
+    if (state.domain && state.domain !== domain) { domain = state.domain; renderAddresses(); }
+    cases = state.cases;
+    renderMetrics(state.metrics);
+    if (fresh.size) {
+      renderFeed(fresh);
+      const newest = state.events.filter((e) => e.student).at(-1);
+      if (newest && newest.type === "inbound") selected = newest.student; // follow the email that just came in
+    }
+    renderTabs();
+    renderCase();
+    $("dot").classList.remove("off");
+    $("status").textContent = `live · ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  } catch (err) {
+    $("dot").classList.add("off");
+    $("status").textContent = String(err.message || err);
+  }
+}
+renderAddresses();
+poll();
+setInterval(poll, 1500);
+</script>
+</body>
+</html>

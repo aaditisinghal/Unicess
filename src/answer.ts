@@ -3,6 +3,7 @@ import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { OFFICES, type StudentFacts, runAgent, writeNextStep } from "./agents";
 import { type Agent, type CaseFile, type Task, type TaskStatus, caseKey, taskKey } from "./cases";
 import { escalate } from "./escalation";
+import { emit } from "./events";
 import { updateMemory } from "./memory";
 
 // A section not ready by then is left out and the student is pointed to that office instead.
@@ -18,7 +19,7 @@ export async function answerEmail(input: {
   caseFile: CaseFile;
   work: Work[];
   domain: string;
-}): Promise<{ text: string; nextStep: string; sections: { agent: Agent; section: string | null }[] }> {
+}): Promise<{ text: string; nextStep: string; escalated: boolean; sections: { agent: Agent; section: string | null }[] }> {
   const { email, student, body, caseFile, work, domain } = input;
   const deadline = AbortSignal.timeout(SECTION_DEADLINE_MS);
 
@@ -27,13 +28,17 @@ export async function answerEmail(input: {
       try {
         const out = await runAgent({ agent, question, subject: email.subject, body, caseFile, signal: deadline });
         const escalated = out.needs_human && !!out.draft_if_approved;
-        await saveSection({ emailId: email.id, student, agent, question }, out.section, escalated ? "waiting_on_human" : "done");
+        const status = escalated ? "waiting_on_human" : "done";
+        await saveSection({ emailId: email.id, student, agent, question }, out.section, status);
+        emit("post", out.section, { student, agent, data: { status, emailId: email.id, question } });
         // A request only a human can grant: the student hears it's being reviewed; staff get the draft.
         if (escalated) await escalate({ email, student, agent, request: question, draft: out.draft_if_approved!, domain });
-        return { agent, section: out.section, facts: out.facts };
+        return { agent, section: out.section, facts: out.facts, escalated };
       } catch (err) {
-        console.warn(`[agent] ${agent}@ missed the reply: ${err instanceof Error ? err.message : err}`);
-        return { agent, section: null, facts: null };
+        const reason = err instanceof Error ? err.message : String(err);
+        console.warn(`[agent] ${agent}@ missed the reply: ${reason}`);
+        emit("post", `Missed the reply: ${reason}`, { student, agent, data: { status: "missed", emailId: email.id, question } });
+        return { agent, section: null, facts: null, escalated: false };
       }
     }),
   );
@@ -61,6 +66,7 @@ export async function answerEmail(input: {
   return {
     text: [nextStep, ...signed, "Halden University, Campus Desk"].join("\n\n"),
     nextStep,
+    escalated: results.some((r) => r.escalated),
     sections: sorted.map(({ agent, section }) => ({ agent, section })),
   };
 }

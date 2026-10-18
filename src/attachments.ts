@@ -5,6 +5,7 @@ import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { z } from "zod";
 import { type CaseFile, caseKey } from "./cases";
 import { env } from "./env";
+import { emit } from "./events";
 import { generateJson } from "./llm";
 import { updateMemory } from "./memory";
 
@@ -51,6 +52,7 @@ export async function readAttachments(email: ReceivedEmail, student: string): Pr
           signal: AbortSignal.timeout(25_000),
         });
         console.log(`[attachments] ${filename}: ${extracted.kind}, ${extracted.summary}`);
+        emit("document", `${filename}: ${extracted.summary}`, { student, data: { filename, kind: extracted.kind } });
         return { ...extracted, emailId: email.id, filename, receivedAt: email.receivedAt };
       } catch (err) {
         console.warn(`[attachments] couldn't read ${filename}: ${err instanceof Error ? err.message : err}`);

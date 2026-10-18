@@ -2,6 +2,7 @@
 // The student's reply lands at counselor@, where the usual flow reads the documents and confirms what's still open.
 import { type CaseFile, caseKey } from "./cases";
 import { openItems } from "./checklist";
+import { emit } from "./events";
 import { updateMemory } from "./memory";
 import { mail } from "./primitive";
 
@@ -48,6 +49,11 @@ export async function sendMissingItems(input: {
     );
     console.log(`[counselor] missing-items email -> ${caseFile.student}: ${open.map((i) => i.item).join(", ")}`);
   }
+  emit("counselor", `Emailed what's missing: ${open.map((i) => i.label.split(" (")[0].split(":")[0]).join("; ")}${dryRun ? " (test, not sent)" : ""}`, {
+    student: caseFile.student,
+    agent: "counselor",
+    data: { items: open, text },
+  });
 
   await updateMemory<CaseFile>(
     caseKey(caseFile.student),

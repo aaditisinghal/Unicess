@@ -27,13 +27,16 @@ export const env = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() || undefined,
   geminiApiKey: process.env.GEMINI_API_KEY?.trim() || undefined,
   // Comma-separated, tried in order: a busy (503) or rate-limited (429) model falls through to the next.
-  // gemini-3.5-flash-lite answered the intl@ demo prompt correctly in ~2.5 s; the flash models took 8-15 s.
-  geminiModels: list(process.env.GEMINI_MODEL, "gemini-3.5-flash-lite,gemini-flash-latest,gemini-2.5-flash"),
+  // gemini-3.5-flash-lite answered the intl@ demo prompt correctly in ~2.5 s and flash-lite-latest in ~1.5 s;
+  // the full flash models took 8-15 s, so they come last.
+  geminiModels: list(process.env.GEMINI_MODEL, "gemini-3.5-flash-lite,gemini-flash-lite-latest,gemini-flash-latest"),
   geminiFastModels: list(process.env.GEMINI_FAST_MODEL, "gemini-flash-lite-latest,gemini-3.5-flash-lite"),
   // Human counselors whose replies approve escalations; their mail never opens a student case.
   staffAddresses: (process.env.STAFF_ADDRESSES ?? "")
     .split(",")
     .map((a) => a.trim().toLowerCase())
     .filter(Boolean),
+  // Token for the dashboard link; without it, a new random one is printed at every start.
+  dashboardToken: process.env.DASHBOARD_TOKEN?.trim() || undefined,
   dryRun: process.env.DRY_RUN === "1",
 };

@@ -5,6 +5,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { env } from "./env";
+import { emit } from "./events";
 
 export type Tier = "fast" | "smart";
 
@@ -16,20 +17,44 @@ const GEMINI_MODELS: Record<Tier, string[]> = { fast: env.geminiFastModels, smar
 export const modelName = (tier: Tier) =>
   provider === "claude" ? CLAUDE_MODELS[tier] : provider === "gemini" ? GEMINI_MODELS[tier].join(" > ") : "none";
 
-// Gemini models are often briefly over capacity; move to the next model instead of failing the section.
-async function withGeminiFallback<T>(tier: Tier, signal: AbortSignal | undefined, call: (model: string) => Promise<T>) {
+// Each try of one model gets this long, so one slow model can't eat the whole 30 s reply budget.
+const ATTEMPT_MS: Record<Tier, number> = { fast: 6_000, smart: 12_000 };
+
+// Gemini models are often briefly over capacity: a busy model gets one quick retry, a slow one is cut off,
+// and then the call moves on to the next model in the tier's list.
+async function withGeminiFallback<T>(
+  tier: Tier,
+  signal: AbortSignal | undefined,
+  call: (model: string, attemptSignal: AbortSignal) => Promise<T>,
+) {
   const models = GEMINI_MODELS[tier];
+  let lastError: unknown = new Error(`no Gemini models configured for ${tier}`);
   for (const [i, model] of models.entries()) {
-    try {
-      return await call(model);
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      const busy = status === 429 || status === 500 || status === 503 || /"code":(429|500|503)/.test(String(err));
-      if (!busy || signal?.aborted || i === models.length - 1) throw err;
-      console.warn(`[llm] ${model} unavailable (${status ?? "busy"}); trying ${models[i + 1]}`);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      if (signal?.aborted) throw signal.reason ?? lastError;
+      const timeout = AbortSignal.timeout(ATTEMPT_MS[tier]);
+      try {
+        return await call(model, signal ? AbortSignal.any([signal, timeout]) : timeout);
+      } catch (err) {
+        lastError = err;
+        if (signal?.aborted) throw err;
+        const status = (err as { status?: number }).status;
+        const busy = status === 429 || status === 500 || status === 503 || /"code":(429|500|503)/.test(String(err));
+        const slow = timeout.aborted;
+        if (!busy && !slow) throw err;
+        if (busy && attempt === 1) {
+          await new Promise((r) => setTimeout(r, 400));
+          continue;
+        }
+        const why = slow ? `no answer in ${ATTEMPT_MS[tier] / 1000} s` : `busy (${status ?? "unavailable"})`;
+        const next = models[i + 1];
+        console.warn(`[llm] ${model} ${why}${next ? `; trying ${next}` : ""}`);
+        emit("model_fallback", `${model} ${why}${next ? `; switched to ${next}` : "; no models left"}`);
+        break;
+      }
     }
   }
-  throw new Error("unreachable");
+  throw lastError;
 }
 
 // A PDF or image sent along with the prompt, base64-encoded.
@@ -99,7 +124,7 @@ export async function generateJson<S extends z.ZodType>(req: Request & { schema:
 
   if (provider === "gemini") {
     const { $schema: _, ...jsonSchema } = z.toJSONSchema(req.schema) as Record<string, unknown>;
-    const response = await withGeminiFallback(req.tier, req.signal, (model) =>
+    const response = await withGeminiFallback(req.tier, req.signal, (model, abortSignal) =>
       geminiClient().models.generateContent({
         model,
         contents: geminiContents(req),
@@ -107,7 +132,7 @@ export async function generateJson<S extends z.ZodType>(req: Request & { schema:
           systemInstruction: req.system,
           responseMimeType: "application/json",
           responseJsonSchema: jsonSchema,
-          abortSignal: req.signal,
+          abortSignal,
         },
       }),
     );
@@ -136,11 +161,11 @@ export async function generateText(req: Request): Promise<string> {
   }
 
   if (provider === "gemini") {
-    const response = await withGeminiFallback(req.tier, req.signal, (model) =>
+    const response = await withGeminiFallback(req.tier, req.signal, (model, abortSignal) =>
       geminiClient().models.generateContent({
         model,
         contents: req.user,
-        config: { systemInstruction: req.system, abortSignal: req.signal },
+        config: { systemInstruction: req.system, abortSignal },
       }),
     );
     const text = response.text?.trim();

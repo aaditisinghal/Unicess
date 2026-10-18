@@ -45,6 +45,7 @@ public/dashboard.html                                                           
 scripts/
   replay.ts        sign a fake inbound email and POST it to localhost                   (step 2)
   reset.ts         delete a student's case/, task/ and escalation/ keys                 (step 2)
+  demo.ts          replay the whole demo script in order against the local server       (step 7)
 fixtures/          synthetic bank statement and TOEFL PDFs                              (step 2, you)
 ```
 

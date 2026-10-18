@@ -6,6 +6,7 @@ import { refreshChecklist } from "./checklist";
 import { sendMissingItems } from "./counselor";
 import { env } from "./env";
 import { handleStaffReply } from "./escalation";
+import { emit, rememberCase, setDomain } from "./events";
 import { createMemory } from "./memory";
 import { mail } from "./primitive";
 import { routeEmail } from "./router";
@@ -25,10 +26,15 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
   const sender = email.sender.address.toLowerCase();
   const recipient = email.receivedBy.toLowerCase();
   const [localPart, ourDomain] = recipient.split("@");
+  setDomain(ourDomain);
+  // Time to first reply is measured from when Primitive received the email.
+  const receivedAt = Date.parse(email.receivedAt);
+  const clockStart = Number.isFinite(receivedAt) && receivedAt <= startedAt ? receivedAt : startedAt;
 
   // Never answer our own addresses: that is how two agents end up replying to each other forever.
   if (sender.endsWith(`@${ourDomain}`)) {
     console.log(`[skip] ${sender} -> ${recipient}: sent from one of our own addresses`);
+    emit("skip", `Ignored mail from our own address ${sender}`, { agent: localPart });
     return;
   }
 
@@ -39,6 +45,11 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
   }
 
   await recordInbound(email, sender, recipient);
+  emit(
+    "inbound",
+    `"${email.subject ?? "(no subject)"}"${email.attachments.length ? ` with ${email.attachments.length} attachment(s)` : ""}`,
+    { student: sender, agent: localPart, data: { subject: email.subject, attachments: email.attachments.map((a) => a.filename) } },
+  );
   const body = email.text ?? "";
   // Replayed test emails (scripts/replay.ts) don't exist in Primitive, so nothing is sent for them.
   const dryRun = env.dryRun || email.id.startsWith("replay_");
@@ -61,9 +72,17 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     work.push({ agent: "intl", question: "Check the attached documents against the requirements." });
   }
   await createTasks(email, sender, work);
+  if (agent === "ask") {
+    emit("route", `Split into tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`, {
+      student: sender,
+      agent,
+      data: { agents: work.map((w) => w.agent) },
+    });
+  }
 
   // Agents see the checklist with any document from this email already marked received.
   const caseFile = await refreshChecklist(sender);
+  rememberCase(caseFile);
   console.log(
     `[case] ${sender}: email ${caseFile.emails.length} on file, ${documents.length} document(s) read, tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`,
   );
@@ -72,8 +91,13 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
 
   // Facts from this email (e.g. "the account is my father's") can change what's required.
   const updated = await refreshChecklist(sender);
+  rememberCase(updated);
   const open = updated.checklist.filter((i) => i.status !== "received" && i.status !== "not_needed");
   console.log(`[checklist] ${sender}: ${updated.checklist.map((i) => `${i.item}=${i.status}`).join(", ")}`);
+  emit("checklist", `${updated.checklist.filter((i) => i.status === "received").length} received, ${open.length} open`, {
+    student: sender,
+    data: { items: updated.checklist },
+  });
 
   // An AI agent writing for the student can ask for a reply it can parse.
   let text = answer.text;
@@ -104,6 +128,12 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     );
     console.log(`[reply] ${agent}@ -> ${sender}: first reply in ${Date.now() - startedAt} ms`);
   }
+  const ms = Date.now() - clockStart;
+  emit("reply", `${agent}@ replied in ${(ms / 1000).toFixed(1)} s${attachments ? " with a structured JSON block" : ""}${dryRun ? " (test, not sent)" : ""}`, {
+    student: sender,
+    agent,
+    data: { ms, escalated: answer.escalated, structured: !!attachments, dryRun, text },
+  });
 
   // After ask@'s first answer, counselor@ starts its own thread listing what's still missing.
   if (agent === "ask" && open.length > 0) {

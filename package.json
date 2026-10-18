@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "replay": "tsx scripts/replay.ts",
     "reset": "tsx scripts/reset.ts",
+    "demo": "tsx scripts/demo.ts",
     "whoami": "tsx scripts/whoami.ts"
   },
   "dependencies": {

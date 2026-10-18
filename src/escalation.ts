@@ -5,6 +5,7 @@ import { isTrustedSender } from "@primitivedotdev/sdk/api";
 import { OFFICES } from "./agents";
 import { type Agent, type Task, taskKey } from "./cases";
 import { env } from "./env";
+import { emit } from "./events";
 import { createMemory, readMemory, updateMemory } from "./memory";
 import { mail } from "./primitive";
 
@@ -73,6 +74,7 @@ export async function escalate(input: {
     `${OFFICES[agent]} agent (${agent}@${domain}), Halden University Campus Desk`,
   ].join("\n");
 
+  emit("escalation", `Draft sent to ${staff} for approval: ${request}`, { student, agent, data: { ref, staff, draft } });
   if (env.dryRun || isReplay(ref)) {
     console.log(`[dry-run] ${agent}@ -> ${staff} ("${subject}"):\n${text}`);
     return;
@@ -124,6 +126,11 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
 
   const { student, agent, domain, subject, messageId, references } = stored.value;
   const text = [answer.trim(), "", `${OFFICES[agent]} (${agent}@${domain})`, "Halden University"].join("\n");
+  emit("approval", `${staff} ${approved ? "approved the draft" : "sent an edited answer"}; ${agent}@ replied to the student`, {
+    student,
+    agent,
+    data: { ref, staff, status: approved ? "approved" : "edited", text },
+  });
   if (env.dryRun || isReplay(ref)) {
     console.log(`[dry-run] ${agent}@ -> ${student} (${approved ? "approved" : "edited"} by ${staff}):\n${text}`);
   } else {

@@ -1,7 +1,11 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import primitive, { PrimitiveWebhookError, WebhookVerificationError } from "@primitivedotdev/sdk";
+import { PrimitiveApiClient, getAccount } from "@primitivedotdev/sdk/api";
 import { env } from "./env";
+import { setDomain, snapshot } from "./events";
 import { handleInbound } from "./inbound";
 import { modelName, provider } from "./llm";
 
@@ -38,8 +42,28 @@ app.post("/webhooks/email", async (c) => {
   return c.json({ ok: true });
 });
 
+// The dashboard shows student files and the server is public through the tunnel, so it needs a token.
+const dashboardToken = env.dashboardToken ?? randomBytes(12).toString("base64url");
+
+function authorized(c: Context): boolean {
+  const given = Buffer.from(c.req.query("token") ?? c.req.header("x-dashboard-token") ?? "");
+  const expected = Buffer.from(dashboardToken);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+app.get("/", (c) =>
+  authorized(c)
+    ? c.html(readFileSync(new URL("../public/dashboard.html", import.meta.url), "utf8"))
+    : c.text("Open the dashboard with the ?token=... link printed in the server log.", 401),
+);
+
+app.get("/api/state", (c) =>
+  authorized(c) ? c.json(snapshot(Number(c.req.query("since") ?? 0) || 0)) : c.json({ error: "unauthorized" }, 401),
+);
+
 serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`Campus Desk listening on http://localhost:${info.port}`);
+  console.log(`Dashboard: http://localhost:${info.port}/?token=${dashboardToken}`);
   console.log(
     provider
       ? `Models: ${provider} (answers ${modelName("smart")}, routing ${modelName("fast")})`
@@ -48,3 +72,13 @@ serve({ fetch: app.fetch, port: env.port }, (info) => {
   if (env.dryRun) console.log("DRY_RUN=1: replies are logged, not sent");
   else if (!env.primitiveApiKey) console.warn("PRIMITIVE_API_KEY is not set: replies will fail until it is");
 });
+
+// Show the agents' real addresses on the dashboard before the first email arrives.
+if (env.primitiveApiKey) {
+  getAccount({ client: new PrimitiveApiClient({ apiKey: env.primitiveApiKey }).client })
+    .then((res) => {
+      const managed = res.data?.data?.managed_inbox_address;
+      if (managed) setDomain(managed);
+    })
+    .catch(() => {});
+}
