@@ -1,4 +1,6 @@
-import { resolve } from "node:path";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 try {
   process.loadEnvFile();
@@ -10,6 +12,19 @@ function required(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing environment variable ${name}; see .env.example`);
   return value;
+}
+
+// On a host without the key file (Railway), the service-account JSON comes in GOOGLE_CREDENTIALS_JSON
+// and is written to a private temp file for the Vertex client.
+function gcpCredentialsPath(): string | undefined {
+  const json = process.env.GOOGLE_CREDENTIALS_JSON?.trim();
+  if (json) {
+    const path = join(tmpdir(), "unicess-vertex-key.json");
+    writeFileSync(path, json, { mode: 0o600 });
+    return path;
+  }
+  const file = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  return file ? resolve(file) : undefined;
 }
 
 function list(value: string | undefined, fallback: string): string[] {
@@ -36,9 +51,7 @@ export const env = {
   // Vertex AI on Google Cloud: used when the project and its service-account key file are set.
   gcpProject: process.env.GOOGLE_CLOUD_PROJECT?.trim() || undefined,
   gcpLocation: process.env.GOOGLE_CLOUD_LOCATION?.trim() || "us-central1",
-  gcpCredentials: process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()
-    ? resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS.trim())
-    : undefined,
+  gcpCredentials: gcpCredentialsPath(),
   vertexModels: list(process.env.VERTEX_MODEL, "gemini-2.5-flash-lite,gemini-2.5-flash"),
   vertexFastModels: list(process.env.VERTEX_FAST_MODEL, "gemini-2.5-flash-lite"),
   // vertex = try Vertex before the Gemini API key (it answered in 1-2 s in testing)
