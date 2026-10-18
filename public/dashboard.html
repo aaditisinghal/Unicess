@@ -544,9 +544,9 @@ function buildDiagram() {
   const edge = (id, from, to, c, extra = "") => edges.append(s("path", { id, class: `edge ${extra}`, d: curve(from, to), style: c ? `--c:${c}` : null }));
   edge("e-s-ask", right("student", 26), right("ask", -68), "var(--ask)");
   for (const o of OFFICES) {
-    edge(`e-ask-${o}`, right("ask", 68), right(o, -86), color(o));
-    edge(`e-${o}-merge`, right(o, 86), right("merge", -26), color(o));
-    edge(`e-s-${o}`, right("student", 26), right(o, -86), color(o), "direct");
+    edge(`e-ask-${o}`, right("ask", 68), right(o, -99), color(o));
+    edge(`e-${o}-merge`, right(o, 99), right("merge", -26), color(o));
+    edge(`e-s-${o}`, right("student", 26), right(o, -99), color(o), "direct");
   }
   edge("e-merge-inbox", right("merge", 26), right("inbox", -26), "var(--good)");
   // Terminal nodes carry a drawn glyph (applicant, envelope) or a live count (the merge).
@@ -568,7 +568,7 @@ function buildDiagram() {
   };
   circleNode("n-student", "student", "", "Applicant", person);
   pillNode("n-ask", "ask", 136, "var(--ask)", "");
-  for (const o of OFFICES) pillNode(`n-${o}`, o, 172, color(o), "");
+  for (const o of OFFICES) pillNode(`n-${o}`, o, 198, color(o), "");
   circleNode("n-merge", "merge", "1", "One reply");
   circleNode("n-inbox", "inbox", "", "Inbox", envelope);
   svg.replaceChildren(edges, nodes, packets);

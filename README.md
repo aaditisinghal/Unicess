@@ -57,9 +57,9 @@ npm start
 
 The dashboard opens in your browser by itself (or open the `Dashboard:` link printed in the terminal). Then:
 
-- press **▶ Play the full demo** to run all ten scenarios in about 90 seconds, or
+- press **Run the full demo** to run all ten scenarios in about 90 seconds, or
 - click any single scenario, or
-- type your own question into **Ask your own question** and pick which address it goes to.
+- type your own question into **Send a test question** and pick which address it goes to.
 
 Everything runs through the same signed webhook that Primitive delivers. Demo emails are answered on the dashboard and never emailed to anyone. Each run uses its own student address (`priya+<run>@example.com`), so several people can run the demo at once on the shared account without touching each other's files.
 
@@ -166,14 +166,14 @@ Features at a glance:
 ![Finished run](docs/screenshots/finished-run.jpg)
 
 - **Live flow diagram.** The newest email moves from the student to `ask@`, fans out to the offices in their own colors (dashed and moving while they work, solid once they answer), and merges into one reply.
-- **Race clock** with a LIVE badge: counts up while the agents work and stops at the reply time, next to "typical university reply: 7 days".
-- **The track's four verbs, counted live:** identity (addresses answering), ask and reply (emails sent, asked back, resumed), attachments (documents read, injections blocked), coordination (handoffs, agent-to-agent steps). Each one pulses when it changes.
-- **Launcher:** Play everything, one-click scenarios, or ask your own question.
-- **Stats:** time to first reply, share answered without a human, handoffs, checklist items cleared, replies after office hours, staff time saved.
-- **Conversations:** one card per email, with each office's signed answer, documents read, escalations, follow-ups and the exact email sent.
-- **Phone view:** what the student actually receives.
-- **Student file:** facts, the I-20 funding gap, the application checklist and the documents read.
-- **Trust and safety:** every attack stopped, with the injected text quoted.
+- **Race clock** with a LIVE badge: counts up while the agents work and stops at the reply time, next to "Typical office reply: 7 days".
+- **The track's four verbs, counted live:** identity (addresses answering), ask and reply (emails sent, asked back), attachments (documents read, injections blocked), coordination (handoffs, agent-to-agent steps). Each one pulses when it changes.
+- **Launcher:** run everything, one-click scenarios, or send a test question.
+- **Stats:** time to first reply, share resolved by agents, office handoffs, documents cleared, off-hours replies, staff time saved.
+- **Conversations:** one card per email, with each office's signed answer, then a log of documents read, escalations, follow-ups and blocks, and the exact email sent.
+- **Applicant's inbox:** what the student actually receives.
+- **Applicant file:** facts, the I-20 funding gap, the application checklist and the documents read.
+- **Safeguards:** every attack stopped, with the injected text quoted.
 - **Show Primitive calls:** a toggle that prints the exact Primitive operation behind every step.
 
 The dashboard needs the token in the link (`?token=...`) because it shows student files.
