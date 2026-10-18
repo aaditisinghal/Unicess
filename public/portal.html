@@ -208,6 +208,16 @@
   .log .tx { color: var(--ink2); overflow-wrap: anywhere; }
   .log q { display: block; margin-top: 4px; padding: 5px 9px; border-left: 2px solid var(--bad); background: var(--bad-soft); color: var(--bad); font-size: 12.5px; quotes: none; }
 
+  /* Outreach to prospective students: its own strip, so it reads as a live action rather than a statistic */
+  .outreach { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 18px 22px; margin-bottom: 24px; background: var(--panel); border: 1px solid var(--rule); border-left: 3px solid var(--accent); }
+  .outreach h2 { margin: 6px 0 4px; font-size: 18px; letter-spacing: -0.02em; font-weight: 600; }
+  .outreach p { margin: 0; color: var(--ink2); font-size: 14px; max-width: 620px; }
+  .outreach-act { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .outreach-act .b { white-space: normal; text-align: left; }
+  .outreach-act .to { font: 500 12px var(--mono); color: var(--muted); }
+  .outreach-act .note { font-size: 12.5px; color: var(--good); max-width: 300px; text-align: right; }
+  .outreach-act .note.err { color: var(--bad); }
+  .outreach-act .note.wait { color: var(--muted); }
   .hero-empty { background: var(--panel); border: 1px solid var(--rule); padding: 40px 36px; display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
   .hero-empty h2 { margin: 0 0 6px; font-size: 22px; letter-spacing: -0.02em; font-weight: 600; }
   .hero-empty p { margin: 0; color: var(--ink2); max-width: 560px; }
@@ -238,6 +248,9 @@
     .kpi:nth-child(n) { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); }
     .kpi:nth-child(even) { border-left: 1px solid var(--rule); padding-left: 14px; }
     .kpi:nth-child(-n+2) { border-top: 0; }
+    .outreach { grid-template-columns: minmax(0, 1fr); }
+    .outreach-act { align-items: flex-start; }
+    .outreach-act .note { text-align: left; }
     .rows li { grid-template-columns: minmax(0, 1fr) auto; }
     .rows li > :first-child { grid-column: 1 / -1; }
     .log li { grid-template-columns: 62px minmax(0, 1fr); }
@@ -288,7 +301,7 @@ const VIEWS = {
 };
 
 let events = [], cases = [], metrics = {}, health = {}, mode = "", busy = null, domain = null, since = 0, me = null, directory = {};
-let reviewTab = "waiting", search = "";
+let reviewTab = "waiting", search = "", outreach = { sending: false, sentAt: null, error: null, wait: null };
 const drafts = new Map(), editing = new Set(), pending = new Map();
 
 const $ = (id) => document.getElementById(id);
@@ -396,6 +409,7 @@ function viewOverview() {
         el("p", {}, `Run the demo to load ten sample conversations in about 90 seconds, or email ${domain ? `ask@${domain}` : "any office address"} and watch it arrive here.`)),
       el("button", { class: "b accent", type: "button", onclick: runDemo, disabled: busy ? "" : null }, el("span", { class: "tri" }), busy ? "Demo running…" : "Run the demo")));
   }
+  out.push(outreachPanel());
   const min = m.staffMinutesSaved ?? 0;
   out.push(el("section", { class: "kpis" },
     kpi("Emails answered", String(m.replies ?? 0), null, `${m.afterHours ?? 0} outside office hours`),
@@ -433,6 +447,37 @@ function viewOverview() {
         el("td", {}, outcome(g))))))
       : el("div", { class: "empty" }, "Conversations appear here as mail arrives.")));
   return out;
+}
+function outreachPanel() {
+  const to = me?.outreach;
+  const note = outreach.error ? el("span", { class: "note err" }, outreach.error)
+    : outreach.wait ? el("span", { class: "note wait" }, outreach.wait)
+    : outreach.sentAt ? el("span", { class: "note" }, `Sent at ${clock(outreach.sentAt)}. Check your inbox (and Spam), then reply to it.`)
+    : null;
+  return el("section", { class: "outreach" },
+    el("div", {}, el("div", { class: "lbl" }, "Live email"), el("h2", {}, "Reach out to prospective students"),
+      el("p", {}, "ask@ sends a welcome email through Primitive. When the student replies, every office answers their questions here within seconds.")),
+    el("div", { class: "outreach-act" },
+      el("button", { class: "b ink", type: "button", disabled: !to || outreach.sending ? "" : null, onclick: emailMe }, outreach.sending ? "Sending…" : "Open a conversation with prospective students"),
+      el("span", { class: "to" }, to ? `To ${to}` : "Set DEMO_INBOX in .env to turn this on"),
+      note));
+}
+async function emailMe() {
+  const before = outreach.sentAt;
+  outreach = { sending: true, sentAt: before, error: null, wait: null };
+  render();
+  try {
+    const res = await fetch("/api/portal/email-me", { method: "POST" });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+    outreach = { sending: false, sentAt: out.at, error: null, wait: null };
+  } catch (err) {
+    // Too soon after the last one is a pause, not a failure: keep the sent note and say how long to wait.
+    const tooSoon = /moments ago/.test(err.message);
+    outreach = { sending: false, sentAt: before, error: tooSoon ? null : err.message, wait: tooSoon ? err.message : null };
+  }
+  render();
+  poll();
 }
 function kpi(k, v, unit, s, tone = "") {
   return el("div", { class: `kpi ${tone}` }, el("div", { class: "k" }, k), el("div", { class: "v num" }, v, unit ? el("small", {}, unit) : null), el("div", { class: "s" }, s));
@@ -580,6 +625,7 @@ function viewApplicant(student) {
     el("div", { class: "cols" }, el("div", {}, left), el("div", {}, right))];
 }
 const LOG = {
+  outreach: () => ["OUT", "out", "ask@ emailed this inbox to start a conversation"],
   inbound: (e) => ["IN", "in", `“${e.data?.subject ?? "(no subject)"}” to ${e.agent ?? "ask"}@`],
   reply: (e) => ["REPLY", "out", `${e.agent}@ replied in ${secs(e.data?.ms)} s`],
   followup: (e) => ["REPLY", "out", `Late answer from ${e.agent}@, sent as a follow-up`],

@@ -965,7 +965,7 @@ function renderShields() {
   $("shields").replaceChildren(el("ul", { class: "shields" }, list.map((e) => el("li", {},
     el("b", {}, e.text), e.data?.kind === "injection" ? el("q", {}, `“${String(e.data.detail).slice(0, 140)}…”`) : null, prim(e)))));
 }
-const FEED = { reminder: "Reminder", followup: "Follow-up", inbound: "Email in", route: "Routed", handoff: "Handoff", document: "Read", post: "Answered", reply: "Replied", checklist: "Checklist", counselor: "Counselor", ask_back: "Asked", resume: "Resumed", escalation: "Escalated", approval: "Approved", learned: "Learned", shield: "Blocked", agent_step: "AI agent", model_fallback: "Model", skip: "Skipped", scenario: "Demo" };
+const FEED = { reminder: "Reminder", followup: "Follow-up", inbound: "Email in", route: "Routed", handoff: "Handoff", document: "Read", post: "Answered", reply: "Replied", checklist: "Checklist", counselor: "Counselor", ask_back: "Asked", resume: "Resumed", escalation: "Escalated", approval: "Approved", learned: "Learned", shield: "Blocked", agent_step: "AI agent", model_fallback: "Model", skip: "Skipped", scenario: "Demo", outreach: "Emailed out" };
 function renderFeed() {
   if (!events.length) return;
   $("count").textContent = plural(events.length, "event");

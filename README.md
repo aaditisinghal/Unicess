@@ -183,7 +183,7 @@ The dashboard lives at `/live` and needs the token in the link (`?token=...`) or
 The university-facing side of Unicess, at `/portal`. The public landing page (`/`) leads to it through **Start** and the sign-in page (`/login`).
 
 - **Sign-in:** Continue with Google (OAuth, once `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; only addresses in `PORTAL_ALLOWED`, or `STAFF_ADDRESSES` when that is empty, get in). Near the bottom, **Continue with demo access** skips Google for judges; `PORTAL_DEMO_ACCESS=0` removes it. Sessions are signed cookies.
-- **Overview:** emails answered, median first reply, share resolved by agents, what is waiting on staff, upcoming checklist deadlines and recent conversations.
+- **Overview:** emails answered, median first reply, share resolved by agents, what is waiting on staff, upcoming checklist deadlines and recent conversations. **Open a conversation with prospective students** sends a real welcome email from ask@ to `DEMO_INBOX` (and only there, at most once every 20 s); reply to it from that inbox and the offices answer live.
 - **Review queue:** every escalation in one place. Approve an agent's draft, edit it before sending, or answer a question an office could not (the office learns that answer). It uses the same code path as a staff email reply. Demo access can act on demo mail only; real applicant mail needs a Google sign-in.
 - **Applicants:** searchable list, then each applicant's profile, I-20 funding gap, checklist, documents and timeline.
 - **Offices** and **Safeguards:** each address with its activity, and every blocked message with the evidence.
@@ -412,6 +412,7 @@ All settings are environment variables (see `.env.example`):
 | `PORTAL_DEMO_ACCESS` | `0` removes the demo-access bypass from the sign-in page |
 | `SESSION_SECRET` | Signs portal sessions; without it, sessions end when the server restarts |
 | `PUBLIC_URL` | The public address behind a tunnel or proxy, used for the Google redirect URI |
+| `DEMO_INBOX` | The one inbox the portal's **Open a conversation with prospective students** button sends to; empty turns the button off |
 | `DRY_RUN` | `1` logs replies instead of sending |
 | `DEMO_MODE` | `recorded` forces recorded mode |
 | `OPEN_BROWSER` | `0` stops `npm start` from opening the landing page |

@@ -25,7 +25,8 @@ export type DeskEvent = {
     | "agent_step"
     | "model_fallback"
     | "skip"
-    | "scenario";
+    | "scenario"
+    | "outreach";
   student?: string;
   agent?: string;
   text: string;

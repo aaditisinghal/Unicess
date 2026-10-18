@@ -10,6 +10,7 @@ import { env } from "./env";
 import { isDemoEscalation, resolveEscalation } from "./escalation";
 import { emit, getDomain, setDomain, snapshot } from "./events";
 import { handleInbound } from "./inbound";
+import { maskEmail, outreachTarget, sendOutreach } from "./outreach";
 import { generateText, modelName, provider } from "./llm";
 import { hasRecording, isPlayingRecording, playRecording, recordRun } from "./recording";
 import { SCENARIOS, busyWith, playAll, runScenario, tryQuestion } from "./scenarios";
@@ -107,7 +108,16 @@ app.post("/auth/logout", (c) => {
 });
 app.get("/api/me", (c) => {
   const s = getSession(c);
-  return s ? c.json({ name: s.name, email: s.email, method: s.method }) : c.json({ error: "unauthorized" }, 401);
+  if (!s) return c.json({ error: "unauthorized" }, 401);
+  const inbox = outreachTarget();
+  return c.json({ name: s.name, email: s.email, method: s.method, outreach: inbox ? maskEmail(inbox) : null });
+});
+
+// "Open a conversation with prospective students": a real email to DEMO_INBOX only; a reply starts a live conversation.
+app.post("/api/portal/email-me", async (c) => {
+  if (!getSession(c)) return c.json({ error: "Sign in first" }, 401);
+  const result = await sendOutreach(domainNow());
+  return result.ok ? c.json(result) : c.json({ error: result.error }, 409);
 });
 
 // The portal's review queue: approve an agent's draft, or send staff's own answer (which teaches a gap).

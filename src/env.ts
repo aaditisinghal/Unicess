@@ -63,5 +63,7 @@ export const env = {
     .filter(Boolean),
   // Token for the dashboard link; without it, a new random one is printed at every start.
   dashboardToken: process.env.DASHBOARD_TOKEN?.trim() || undefined,
+  // The one inbox the portal's "Open a conversation with prospective students" button may write to.
+  demoInbox: process.env.DEMO_INBOX?.trim().toLowerCase() || undefined,
   dryRun: process.env.DRY_RUN === "1",
 };
