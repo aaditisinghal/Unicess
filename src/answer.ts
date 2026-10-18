@@ -1,6 +1,8 @@
 // Runs the department agents in parallel, saves their sections, and merges them into one reply.
+import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { OFFICES, type StudentFacts, runAgent, writeNextStep } from "./agents";
-import { type Agent, type CaseFile, type Task, caseKey, taskKey } from "./cases";
+import { type Agent, type CaseFile, type Task, type TaskStatus, caseKey, taskKey } from "./cases";
+import { escalate } from "./escalation";
 import { updateMemory } from "./memory";
 
 // A section not ready by then is left out and the student is pointed to that office instead.
@@ -10,22 +12,24 @@ const ORDER: Agent[] = ["intl", "admissions", "finaid", "housing", "counselor", 
 type Work = { agent: Agent; question: string };
 
 export async function answerEmail(input: {
-  emailId: string;
+  email: ReceivedEmail;
   student: string;
-  subject: string | null;
   body: string;
   caseFile: CaseFile;
   work: Work[];
   domain: string;
 }): Promise<string> {
-  const { emailId, student, subject, body, caseFile, work, domain } = input;
+  const { email, student, body, caseFile, work, domain } = input;
   const deadline = AbortSignal.timeout(SECTION_DEADLINE_MS);
 
   const results = await Promise.all(
     work.map(async ({ agent, question }) => {
       try {
-        const out = await runAgent({ agent, question, subject, body, caseFile, signal: deadline });
-        await saveSection({ emailId, student, agent, question }, out.section);
+        const out = await runAgent({ agent, question, subject: email.subject, body, caseFile, signal: deadline });
+        const escalated = out.needs_human && !!out.draft_if_approved;
+        await saveSection({ emailId: email.id, student, agent, question }, out.section, escalated ? "waiting_on_human" : "done");
+        // A request only a human can grant: the student hears it's being reviewed; staff get the draft.
+        if (escalated) await escalate({ email, student, agent, request: question, draft: out.draft_if_approved!, domain });
         return { agent, section: out.section, facts: out.facts };
       } catch (err) {
         console.warn(`[agent] ${agent}@ missed the reply: ${err instanceof Error ? err.message : err}`);
@@ -58,12 +62,16 @@ export async function answerEmail(input: {
 }
 
 // The saved section is the agent's post on the case's internal thread (shown on the dashboard).
-async function saveSection(task: Pick<Task, "emailId" | "student" | "agent" | "question">, section: string) {
+async function saveSection(
+  task: Pick<Task, "emailId" | "student" | "agent" | "question">,
+  section: string,
+  status: TaskStatus,
+) {
   const now = new Date().toISOString();
   await updateMemory<Task>(
     taskKey(task.emailId, task.agent),
     () => ({ ...task, status: "queued", createdAt: now, updatedAt: now }),
-    (current) => ({ ...current, status: "done", section, updatedAt: now }),
+    (current) => ({ ...current, status, section, updatedAt: now }),
   );
 }
 

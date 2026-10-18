@@ -55,7 +55,8 @@ event.email = {
   headers: { message_id: `<${id}@replay.local>`, subject: values.subject, from, to, date: now.toUTCString() },
   parsed: {
     ...event.email.parsed,
-    body_text: values.body,
+    // A literal \n becomes a newline: npm on Windows runs scripts through cmd.exe, which cuts arguments at real newlines.
+    body_text: values.body.replaceAll("\\n", "\n"),
     body_html: null,
     to_addresses: [{ address: to, name: null }],
     attachments,

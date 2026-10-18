@@ -13,8 +13,10 @@ export const isAgent = (name: string): name is Agent => (AGENTS as readonly stri
 
 export type ChecklistItem = {
   item: string;
+  label: string;
   deadline: string;
-  status: "missing" | "received" | "not_needed";
+  // if_parent: needed only if the funding account belongs to a parent, which isn't known yet
+  status: "missing" | "received" | "not_needed" | "if_parent";
   sourceEmailId?: string;
 };
 
@@ -25,6 +27,8 @@ export type CaseFile = {
   checklist: ChecklistItem[];
   emails: { id: string; to: string; subject: string | null; at: string }[];
   documents?: StudentDocument[];
+  // When counselor@ last emailed the student what's missing (build step 5)
+  missingItemsSentAt?: string;
   createdAt: string;
   updatedAt: string;
 };

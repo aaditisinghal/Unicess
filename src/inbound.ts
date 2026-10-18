@@ -1,9 +1,12 @@
 import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { answerEmail } from "./answer";
 import { readAttachments } from "./attachments";
-import { type Agent, type CaseFile, caseKey, createTasks, isAgent, recordInbound } from "./cases";
+import { type Agent, createTasks, isAgent, recordInbound } from "./cases";
+import { refreshChecklist } from "./checklist";
+import { sendMissingItems } from "./counselor";
 import { env } from "./env";
-import { createMemory, readMemory } from "./memory";
+import { handleStaffReply } from "./escalation";
+import { createMemory } from "./memory";
 import { mail } from "./primitive";
 import { routeEmail } from "./router";
 
@@ -28,14 +31,16 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     return;
   }
 
-  // A counselor's reply approves or edits an escalation (build step 5); it must never open a student case.
+  // A counselor's reply approves or edits an escalation; it never opens a student case.
   if (env.staffAddresses.includes(sender)) {
-    console.log(`[staff] ${sender} -> ${recipient}: escalation replies are handled in build step 5`);
+    await handleStaffReply(email, sender);
     return;
   }
 
-  let caseFile = await recordInbound(email, sender, recipient);
+  await recordInbound(email, sender, recipient);
   const body = email.text ?? "";
+  // Replayed test emails (scripts/replay.ts) don't exist in Primitive, so nothing is sent for them.
+  const dryRun = env.dryRun || email.id.startsWith("replay_");
 
   // ask@ (or an unknown address) splits the email across departments; a department address answers alone.
   // Attachments are read at the same time, so documents don't add to the wait.
@@ -55,32 +60,34 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     work.push({ agent: "intl", question: "Check the attached documents against the requirements." });
   }
   await createTasks(email, sender, work);
-  if (documents.length > 0) caseFile = (await readMemory<CaseFile>(caseKey(sender)))?.value ?? caseFile;
+
+  // Agents see the checklist with any document from this email already marked received.
+  const caseFile = await refreshChecklist(sender);
   console.log(
     `[case] ${sender}: email ${caseFile.emails.length} on file, ${documents.length} document(s) read, tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`,
   );
 
-  const text = await answerEmail({
-    emailId: email.id,
-    student: sender,
-    subject: email.subject,
-    body,
-    caseFile,
-    work,
-    domain: ourDomain,
-  });
+  const text = await answerEmail({ email, student: sender, body, caseFile, work, domain: ourDomain });
 
-  // Replayed test emails (scripts/replay.ts) don't exist in Primitive, so they are logged instead of answered.
-  if (env.dryRun || email.id.startsWith("replay_")) {
+  if (dryRun) {
     console.log(`[dry-run] ${agent}@ -> ${sender} after ${Date.now() - startedAt} ms:\n${text}`);
-    return;
+  } else {
+    // The key makes a webhook retry of this event return the first reply instead of sending a second.
+    await mail().reply(
+      email,
+      { text, from: `"Halden University" <${recipient}>` },
+      { idempotencyKey: `${email.eventId}:${agent}:answer` },
+    );
+    console.log(`[reply] ${agent}@ -> ${sender}: first reply in ${Date.now() - startedAt} ms`);
   }
 
-  // The key makes a webhook retry of this event return the first reply instead of sending a second.
-  await mail().reply(
-    email,
-    { text, from: `"Halden University" <${recipient}>` },
-    { idempotencyKey: `${email.eventId}:${agent}:answer` },
-  );
-  console.log(`[reply] ${agent}@ -> ${sender}: first reply in ${Date.now() - startedAt} ms`);
+  // Facts from this email (e.g. "the account is my father's") can change what's required.
+  const updated = await refreshChecklist(sender);
+  const open = updated.checklist.filter((i) => i.status !== "received" && i.status !== "not_needed");
+  console.log(`[checklist] ${sender}: ${updated.checklist.map((i) => `${i.item}=${i.status}`).join(", ")}`);
+
+  // After ask@'s first answer, counselor@ starts its own thread listing what's still missing.
+  if (agent === "ask" && open.length > 0) {
+    await sendMissingItems({ caseFile: updated, domain: ourDomain, eventId: email.eventId, dryRun });
+  }
 }
