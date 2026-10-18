@@ -6,6 +6,11 @@ import { env } from "../src/env";
 
 const STUDENT = "student@example.com";
 const AGENT = "priya-agent@helper-bot.primitive.email";
+// Replayed mail only authenticates as example.com, so the replayed approval must come from this test address.
+const TEST_STAFF = "staff@example.com";
+if (!env.staffAddresses.includes(TEST_STAFF)) {
+  throw new Error(`Add ${TEST_STAFF} to STAFF_ADDRESSES (after the real counselor) so the replayed approval is accepted`);
+}
 const base = `http://localhost:${env.port}`;
 const token = env.dashboardToken;
 if (!token) throw new Error("Set DASHBOARD_TOKEN in .env; the demo waits on the dashboard's events");
@@ -80,7 +85,7 @@ if (!escalation) throw new Error("finaid@ didn't escalate the waiver; check the 
 await step(
   "Step 8: staff counselor replies APPROVE",
   [
-    "--from", env.staffAddresses[0] ?? "staff@example.com",
+    "--from", TEST_STAFF,
     "--to", "finaid",
     "--subject", `Re: [Approval needed] Financial Aid: request from ${STUDENT} (ref ${escalation.data?.ref})`,
     "--body", "APPROVE",

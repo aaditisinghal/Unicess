@@ -1,5 +1,6 @@
 // One interface over two model providers: Claude when ANTHROPIC_API_KEY is set, otherwise Gemini.
 // "fast" is for routing and one-liners; "smart" writes department answers and reads documents.
+import { existsSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { GoogleGenAI } from "@google/genai";
@@ -9,47 +10,74 @@ import { emit } from "./events";
 
 export type Tier = "fast" | "smart";
 
-export const provider: "claude" | "gemini" | null = env.anthropicApiKey ? "claude" : env.geminiApiKey ? "gemini" : null;
+// Vertex AI on the Google Cloud project, used when its service-account key file is present.
+const vertexReady = !!(env.gcpProject && env.gcpCredentials && existsSync(env.gcpCredentials));
+
+export const provider: "claude" | "gemini" | null = env.anthropicApiKey
+  ? "claude"
+  : env.geminiApiKey || vertexReady
+    ? "gemini"
+    : null;
 
 const CLAUDE_MODELS: Record<Tier, string> = { fast: "claude-haiku-5-5", smart: "claude-sonnet-5-5" };
-const GEMINI_MODELS: Record<Tier, string[]> = { fast: env.geminiFastModels, smart: env.geminiModels };
+
+// Where each Gemini call can go, in order: the API key's first model, then Vertex AI (a billed
+// project with its own quota), then the API key's other models. GEMINI_PREFER=vertex puts Vertex first.
+type GeminiRoute = { backend: "studio" | "vertex"; model: string };
+function geminiRoutes(studio: string[], vertex: string[]): GeminiRoute[] {
+  const viaKey = env.geminiApiKey ? studio.map((model) => ({ backend: "studio" as const, model })) : [];
+  const viaVertex = vertexReady ? vertex.map((model) => ({ backend: "vertex" as const, model })) : [];
+  if (env.preferVertex) return [...viaVertex, ...viaKey];
+  return [...viaKey.slice(0, 1), ...viaVertex, ...viaKey.slice(1)];
+}
+const GEMINI_ROUTES: Record<Tier, GeminiRoute[]> = {
+  fast: geminiRoutes(env.geminiFastModels, env.vertexFastModels),
+  smart: geminiRoutes(env.geminiModels, env.vertexModels),
+};
+const routeName = (r: GeminiRoute) => (r.backend === "vertex" ? `vertex:${r.model}` : r.model);
 
 export const modelName = (tier: Tier) =>
-  provider === "claude" ? CLAUDE_MODELS[tier] : provider === "gemini" ? GEMINI_MODELS[tier].join(" > ") : "none";
+  provider === "claude" ? CLAUDE_MODELS[tier] : provider === "gemini" ? GEMINI_ROUTES[tier].map(routeName).join(" > ") : "none";
 
 // Each try of one model gets this long, so one slow model can't eat the whole 30 s reply budget.
 const ATTEMPT_MS: Record<Tier, number> = { fast: 6_000, smart: 12_000 };
 
 // Gemini models are often briefly over capacity: a busy model gets one quick retry, a slow one is cut off,
-// and then the call moves on to the next model in the tier's list.
+// and then the call moves on to the next route in the tier's list.
 async function withGeminiFallback<T>(
   tier: Tier,
   signal: AbortSignal | undefined,
-  call: (model: string, attemptSignal: AbortSignal) => Promise<T>,
+  call: (client: GoogleGenAI, model: string, attemptSignal: AbortSignal) => Promise<T>,
 ) {
-  const models = GEMINI_MODELS[tier];
+  const routes = GEMINI_ROUTES[tier];
   let lastError: unknown = new Error(`no Gemini models configured for ${tier}`);
-  for (const [i, model] of models.entries()) {
+  for (const [i, route] of routes.entries()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       if (signal?.aborted) throw signal.reason ?? lastError;
       const timeout = AbortSignal.timeout(ATTEMPT_MS[tier]);
       try {
-        return await call(model, signal ? AbortSignal.any([signal, timeout]) : timeout);
+        return await call(geminiClient(route.backend), route.model, signal ? AbortSignal.any([signal, timeout]) : timeout);
       } catch (err) {
         lastError = err;
         if (signal?.aborted) throw err;
         const status = (err as { status?: number }).status;
         const busy = status === 429 || status === 500 || status === 503 || /"code":(429|500|503)/.test(String(err));
         const slow = timeout.aborted;
-        if (!busy && !slow) throw err;
+        // Vertex can also fail on setup (a model not enabled in the project, credentials); move past it.
+        const vertexFailure = route.backend === "vertex";
+        if (!busy && !slow && !vertexFailure) throw err;
         if (busy && attempt === 1) {
           await new Promise((r) => setTimeout(r, 400));
           continue;
         }
-        const why = slow ? `no answer in ${ATTEMPT_MS[tier] / 1000} s` : `busy (${status ?? "unavailable"})`;
-        const next = models[i + 1];
-        console.warn(`[llm] ${model} ${why}${next ? `; trying ${next}` : ""}`);
-        emit("model_fallback", `${model} ${why}${next ? `; switched to ${next}` : "; no models left"}`);
+        const why = slow
+          ? `no answer in ${ATTEMPT_MS[tier] / 1000} s`
+          : busy
+            ? `busy (${status ?? "unavailable"})`
+            : `failed (${String(err instanceof Error ? err.message : err).slice(0, 80)})`;
+        const next = routes[i + 1];
+        console.warn(`[llm] ${routeName(route)} ${why}${next ? `; trying ${routeName(next)}` : ""}`);
+        emit("model_fallback", `${routeName(route)} ${why}${next ? `; switched to ${routeName(next)}` : "; no models left"}`);
         break;
       }
     }
@@ -86,16 +114,26 @@ function geminiContents(req: Request) {
 }
 
 let anthropic: Anthropic | undefined;
-let gemini: GoogleGenAI | undefined;
+let studio: GoogleGenAI | undefined;
+let vertex: GoogleGenAI | undefined;
 
 function claudeClient() {
   anthropic ??= new Anthropic({ apiKey: env.anthropicApiKey });
   return anthropic;
 }
 
-function geminiClient() {
-  gemini ??= new GoogleGenAI({ apiKey: env.geminiApiKey });
-  return gemini;
+function geminiClient(backend: GeminiRoute["backend"]) {
+  if (backend === "vertex") {
+    vertex ??= new GoogleGenAI({
+      vertexai: true,
+      project: env.gcpProject,
+      location: env.gcpLocation,
+      googleAuthOptions: { keyFilename: env.gcpCredentials },
+    });
+    return vertex;
+  }
+  studio ??= new GoogleGenAI({ apiKey: env.geminiApiKey });
+  return studio;
 }
 
 function noProvider(): never {
@@ -124,8 +162,8 @@ export async function generateJson<S extends z.ZodType>(req: Request & { schema:
 
   if (provider === "gemini") {
     const { $schema: _, ...jsonSchema } = z.toJSONSchema(req.schema) as Record<string, unknown>;
-    const response = await withGeminiFallback(req.tier, req.signal, (model, abortSignal) =>
-      geminiClient().models.generateContent({
+    const response = await withGeminiFallback(req.tier, req.signal, (client, model, abortSignal) =>
+      client.models.generateContent({
         model,
         contents: geminiContents(req),
         config: {
@@ -161,8 +199,8 @@ export async function generateText(req: Request): Promise<string> {
   }
 
   if (provider === "gemini") {
-    const response = await withGeminiFallback(req.tier, req.signal, (model, abortSignal) =>
-      geminiClient().models.generateContent({
+    const response = await withGeminiFallback(req.tier, req.signal, (client, model, abortSignal) =>
+      client.models.generateContent({
         model,
         contents: req.user,
         config: { systemInstruction: req.system, abortSignal },

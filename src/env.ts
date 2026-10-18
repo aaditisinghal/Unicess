@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 try {
   process.loadEnvFile();
 } catch {
@@ -31,6 +33,16 @@ export const env = {
   // the full flash models took 8-15 s, so they come last.
   geminiModels: list(process.env.GEMINI_MODEL, "gemini-3.5-flash-lite,gemini-flash-lite-latest,gemini-flash-latest"),
   geminiFastModels: list(process.env.GEMINI_FAST_MODEL, "gemini-flash-lite-latest,gemini-3.5-flash-lite"),
+  // Vertex AI on Google Cloud: used when the project and its service-account key file are set.
+  gcpProject: process.env.GOOGLE_CLOUD_PROJECT?.trim() || undefined,
+  gcpLocation: process.env.GOOGLE_CLOUD_LOCATION?.trim() || "us-central1",
+  gcpCredentials: process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()
+    ? resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS.trim())
+    : undefined,
+  vertexModels: list(process.env.VERTEX_MODEL, "gemini-2.5-flash-lite,gemini-2.5-flash"),
+  vertexFastModels: list(process.env.VERTEX_FAST_MODEL, "gemini-2.5-flash-lite"),
+  // vertex = try Vertex before the Gemini API key (it answered in 1-2 s in testing)
+  preferVertex: process.env.GEMINI_PREFER?.trim().toLowerCase() === "vertex",
   // Human counselors whose replies approve escalations; their mail never opens a student case.
   staffAddresses: (process.env.STAFF_ADDRESSES ?? "")
     .split(",")

@@ -32,7 +32,14 @@ export async function answerEmail(input: {
         await saveSection({ emailId: email.id, student, agent, question }, out.section, status);
         emit("post", out.section, { student, agent, data: { status, emailId: email.id, question } });
         // A request only a human can grant: the student hears it's being reviewed; staff get the draft.
-        if (escalated) await escalate({ email, student, agent, request: question, draft: out.draft_if_approved!, domain });
+        // If staff can't be emailed, the student's answer still goes out; the escalation stays waiting.
+        if (escalated) {
+          await escalate({ email, student, agent, request: question, draft: out.draft_if_approved!, domain }).catch((err) => {
+            const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
+            console.warn(`[escalation] couldn't email staff for ${agent}@: ${reason}`);
+            emit("escalation", `Couldn't email staff: ${reason}`, { student, agent, data: { failed: true } });
+          });
+        }
         return { agent, section: out.section, facts: out.facts, escalated };
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
