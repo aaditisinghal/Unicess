@@ -1,16 +1,20 @@
 // Runs the department agents in parallel, saves their sections, and merges them into one reply.
 import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { OFFICES, type StudentFacts, runAgent, writeNextStep } from "./agents";
+import { UNDER_REVIEW, WAIVER_DRAFT, requiresApproval } from "./approval";
 import { type Agent, type CaseFile, type Task, type TaskStatus, caseKey, taskKey } from "./cases";
 import { escalate } from "./escalation";
 import { emit } from "./events";
 import { updateMemory } from "./memory";
 
-// A section not ready by then is left out and the student is pointed to that office instead.
-const SECTION_DEADLINE_MS = 30_000;
+// The combined reply goes out at this cut. An office still working keeps going (up to the hard limit)
+// and its answer follows as a second email in the same thread, so nothing waits on the slowest office.
+const SECTION_DEADLINE_MS = Number(process.env.SECTION_CUT_MS) || 30_000;
+const LATE_LIMIT_MS = 90_000;
 const ORDER: Agent[] = ["intl", "admissions", "finaid", "housing", "counselor", "ask"];
 
 type Work = { agent: Agent; question: string };
+type Result = { agent: Agent; section: string | null; facts: StudentFacts | null; escalated: boolean };
 
 export async function answerEmail(input: {
   email: ReceivedEmail;
@@ -19,45 +23,88 @@ export async function answerEmail(input: {
   caseFile: CaseFile;
   work: Work[];
   domain: string;
+  // false for an unverified sender: answer, but never write to their case file or escalate.
+  saveToCase?: boolean;
+  // Called with an office's answer that arrived after the combined reply went out.
+  onLate?: (agent: Agent, section: string) => Promise<void>;
 }): Promise<{ text: string; nextStep: string; escalated: boolean; sections: { agent: Agent; section: string | null }[] }> {
   const { email, student, body, caseFile, work, domain } = input;
-  const deadline = AbortSignal.timeout(SECTION_DEADLINE_MS);
+  const save = input.saveToCase !== false;
+  const hardLimit = AbortSignal.timeout(LATE_LIMIT_MS);
+  let cutPassed = false;
 
-  const results = await Promise.all(
-    work.map(async ({ agent, question }) => {
-      try {
-        const out = await runAgent({ agent, question, subject: email.subject, body, caseFile, signal: deadline });
-        const escalated = out.needs_human && !!out.draft_if_approved;
-        const status = escalated ? "waiting_on_human" : "done";
-        await saveSection({ emailId: email.id, student, agent, question }, out.section, status);
-        emit("post", out.section, { student, agent, data: { status, emailId: email.id, question } });
-        // A request only a human can grant: the student hears it's being reviewed; staff get the draft.
-        // If staff can't be emailed, the student's answer still goes out; the escalation stays waiting.
-        if (escalated) {
-          await escalate({ email, student, agent, request: question, draft: out.draft_if_approved!, domain }).catch((err) => {
-            const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
-            console.warn(`[escalation] couldn't email staff for ${agent}@: ${reason}`);
-            emit("escalation", `Couldn't email staff: ${reason}`, { student, agent, data: { failed: true } });
-          });
-        }
-        return { agent, section: out.section, facts: out.facts, escalated };
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        console.warn(`[agent] ${agent}@ missed the reply: ${reason}`);
-        emit("post", `Missed the reply: ${reason}`, { student, agent, data: { status: "missed", emailId: email.id, question } });
-        return { agent, section: null, facts: null, escalated: false };
+  const runOne = async ({ agent, question }: Work): Promise<Result> => {
+    try {
+      const out = await runAgent({ agent, question, subject: email.subject, body, caseFile, signal: hardLimit });
+      // Waivers are forced to a human in code; the student hears it's under review, and staff get a draft.
+      if (requiresApproval(agent, `${question}\n${email.subject ?? ""}\n${body}`)) {
+        out.needs_human = true;
+        out.draft_if_approved ??= WAIVER_DRAFT;
+        if (!/\b(counsel|review|human|staff)/i.test(out.section)) out.section = UNDER_REVIEW;
       }
-    }),
-  );
+      // Two reasons to bring in a human: a decision only staff can make, or a question the knowledge file can't answer.
+      const kind = out.needs_human && out.draft_if_approved ? "approval" : out.knowledge_gap ? "gap" : null;
+      const escalated = save && kind !== null;
+      const status = escalated ? "waiting_on_human" : "done";
+      if (save) await saveSection({ emailId: email.id, student, agent, question }, out.section, status);
+      emit("post", out.section, {
+        student,
+        agent,
+        data: { status, emailId: email.id, question, late: cutPassed },
+        primitive: save ? [`memories.set("task/${email.id.slice(0, 14)}…/${agent}", if_version): section saved, status ${status}`] : [],
+      });
+      // A request only a human can grant: the student hears it's being reviewed; staff get the draft.
+      // If staff can't be emailed, the student's answer still goes out; the escalation stays waiting.
+      if (escalated) {
+        await escalate({ email, student, agent, request: question, draft: out.draft_if_approved ?? out.section, domain, kind: kind! }).catch((err) => {
+          const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
+          console.warn(`[escalation] couldn't email staff for ${agent}@: ${reason}`);
+          emit("escalation", `Couldn't email staff: ${reason}`, { student, agent, data: { failed: true } });
+        });
+      }
+      return { agent, section: out.section, facts: out.facts, escalated };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn(`[agent] ${agent}@ gave no answer: ${reason}`);
+      emit("post", `No answer from ${agent}@ in time; the reply points the student to ${agent}@ directly.`, {
+        student,
+        agent,
+        data: { status: "missed", emailId: email.id, question, reason },
+      });
+      return { agent, section: null, facts: null, escalated: false };
+    }
+  };
 
-  await mergeFacts(student, results.flatMap((r) => (r.facts ? [r.facts] : [])));
+  const runs = work.map((w) => ({ work: w, promise: runOne(w) }));
+  const cut = new Promise<null>((resolve) => setTimeout(() => resolve(null), SECTION_DEADLINE_MS));
+  const settled = await Promise.all(runs.map((r) => Promise.race([r.promise, cut])));
+  cutPassed = true;
+  const results: Result[] = settled.map((r, i) => r ?? { agent: runs[i]!.work.agent, section: null, facts: null, escalated: false });
+
+  // Offices still working at the cut: say so in the reply, and send their answer when it arrives.
+  runs.forEach((run, i) => {
+    if (settled[i]) return;
+    const { agent } = run.work;
+    emit("post", `Still working at the 30 s cut; ${agent}@'s answer will follow in the same thread.`, {
+      student,
+      agent,
+      data: { status: "pending_late", emailId: email.id, question: run.work.question },
+    });
+    run.promise.then(async (late) => {
+      if (!late.section) return;
+      if (save && late.facts) await mergeFacts(student, [late.facts]).catch(() => {});
+      await input.onLate?.(agent, late.section).catch((err) => console.warn(`[answer] follow-up from ${agent}@ failed: ${err instanceof Error ? err.message : err}`));
+    });
+  });
+
+  if (save) await mergeFacts(student, results.flatMap((r) => (r.facts ? [r.facts] : [])));
 
   const sorted = [...results].sort((a, b) => ORDER.indexOf(a.agent) - ORDER.indexOf(b.agent));
   const signed = sorted.map(({ agent, section }) => {
     const heading = `${OFFICES[agent]} (${agent}@${domain})`;
     return section
       ? `${heading}\n${section.trim()}`
-      : `${heading}\nThis office's answer isn't ready yet. Write to ${agent}@${domain} directly and they will reply.`;
+      : `${heading}\nThis office is still working on your question; its answer will follow in this thread. You can also write to ${agent}@${domain} directly.`;
   });
 
   const answered = sorted.filter((r) => r.section).map((r) => r.section).join("\n\n");

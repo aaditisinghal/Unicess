@@ -7,6 +7,7 @@ import { type Agent, type Task, taskKey } from "./cases";
 import { env } from "./env";
 import { emit } from "./events";
 import { createMemory, readMemory, updateMemory } from "./memory";
+import { addLearned } from "./learned";
 import { mail } from "./primitive";
 
 export type Escalation = {
@@ -22,6 +23,8 @@ export type Escalation = {
   messageId: string | null;
   references: string[];
   status: "waiting" | "approved" | "edited";
+  // approval: a decision only staff can make. gap: a question the knowledge file couldn't answer.
+  kind?: "approval" | "gap";
   createdAt: string;
   resolvedAt?: string;
 };
@@ -36,8 +39,10 @@ export async function escalate(input: {
   request: string;
   draft: string;
   domain: string;
+  kind?: "approval" | "gap";
 }): Promise<void> {
   const { email, student, agent, request, draft, domain } = input;
+  const kind = input.kind ?? "approval";
   const ref = `${email.id}/${agent}`;
   const staff = env.staffAddresses[0] ?? null;
   const record: Escalation = {
@@ -52,6 +57,7 @@ export async function escalate(input: {
     messageId: email.thread.messageId,
     references: email.thread.references,
     status: "waiting",
+    kind,
     createdAt: new Date().toISOString(),
   };
   // Create-only, so a webhook retry never sends staff a second copy.
@@ -61,20 +67,36 @@ export async function escalate(input: {
     console.warn(`[escalation] ${ref} is waiting, but STAFF_ADDRESSES is empty, so no counselor was emailed`);
     return;
   }
-  const subject = `[Approval needed] ${OFFICES[agent]}: request from ${student} (ref ${ref})`;
-  const text = [
-    `${student} asked: ${request}`,
-    "",
-    "Reply APPROVE to send this draft to the student, or reply with your own version and that will be sent instead.",
-    "",
-    "--- Draft ---",
-    draft,
-    "--- End of draft ---",
-    "",
-    `${OFFICES[agent]} agent (${agent}@${domain}), Halden University Campus Desk`,
-  ].join("\n");
+  const subject = `[${kind === "gap" ? "Answer needed" : "Approval needed"}] ${OFFICES[agent]}: request from ${student} (ref ${ref})`;
+  const text = (
+    kind === "gap"
+      ? [
+          `${student} asked: ${request}`,
+          "",
+          `${agent}@'s knowledge file doesn't answer this. Reply with the answer: it goes to the student, and ${agent}@ learns it, so the next student with this question is answered with no human.`,
+        ]
+      : [
+          `${student} asked: ${request}`,
+          "",
+          "Reply APPROVE to send this draft to the student, or reply with your own version and that will be sent instead.",
+          "",
+          "--- Draft ---",
+          draft,
+          "--- End of draft ---",
+        ]
+  )
+    .concat(["", `${OFFICES[agent]} agent (${agent}@${domain}), Halden University Campus Desk`])
+    .join("\n");
 
-  emit("escalation", `Draft sent to ${staff} for approval: ${request}`, { student, agent, data: { ref, staff, draft } });
+  emit("escalation", kind === "gap" ? `Asked ${staff} for an answer ${agent}@ doesn't have: ${request}` : `Draft sent to ${staff} for approval: ${request}`, {
+    student,
+    agent,
+    data: { ref, staff, draft, kind },
+    primitive: [
+      `memories.set("escalation/${ref.slice(0, 14)}…", if_absent): waiting_on_human`,
+      `client.send({ from: ${agent}@, to: ${staff} })${env.dryRun || isReplay(ref) ? " (demo email: not sent)" : ""}`,
+    ],
+  });
   if (env.dryRun || isReplay(ref)) {
     console.log(`[dry-run] ${agent}@ -> ${staff} ("${subject}"):\n${text}`);
     return;
@@ -91,6 +113,10 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
   const trust = isTrustedSender(email.raw, { domain: staff.split("@")[1], sender: staff });
   if (!trust.trusted) {
     console.warn(`[escalation] ignored mail from ${staff}: sender not authenticated (${trust.reason})`);
+    emit("shield", `An APPROVE claiming to be from ${staff} failed sender authentication and was ignored`, {
+      data: { kind: "forged_approval", detail: trust.reason },
+      primitive: [`isTrustedSender(email, { sender: ${staff} }) → ${trust.reason}`],
+    });
     return;
   }
   const ref = /\(ref ([^)\s]+)\)/.exec(email.subject ?? "")?.[1];
@@ -125,11 +151,26 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
   }
 
   const { student, agent, domain, subject, messageId, references } = stored.value;
+  // A staff answer to a knowledge gap becomes part of that office's knowledge. Approvals never do.
+  if (stored.value.kind === "gap" && !approved) {
+    await addLearned(agent, { question: stored.value.request, answer: answer.trim(), from: staff, at: now });
+    emit("learned", `${agent}@ learned a new answer from ${staff}: the next student who asks gets it with no human`, {
+      student,
+      agent,
+      data: { question: stored.value.request, answer: answer.trim() },
+      primitive: [`memories.set("knowledge/${agent}", if_version): learned answer appended`],
+    });
+  }
   const text = [answer.trim(), "", `${OFFICES[agent]} (${agent}@${domain})`, "Halden University"].join("\n");
   emit("approval", `${staff} ${approved ? "approved the draft" : "sent an edited answer"}; ${agent}@ replied to the student`, {
     student,
     agent,
     data: { ref, staff, status: approved ? "approved" : "edited", text },
+    primitive: [
+      `isTrustedSender(email, { domain: "${staff.split("@")[1]}", sender }) → trusted`,
+      `memories.set("escalation/…", if_version): claimed once, status ${approved ? "approved" : "edited"}`,
+      `client.send({ from: ${agent}@, to: student, thread: inReplyTo })${env.dryRun || isReplay(ref) ? " (demo email: not sent)" : ""}`,
+    ],
   });
   if (env.dryRun || isReplay(ref)) {
     console.log(`[dry-run] ${agent}@ -> ${student} (${approved ? "approved" : "edited"} by ${staff}):\n${text}`);
@@ -156,7 +197,7 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
 }
 
 // The staff member's new text: everything above the quoted email.
-function newText(body: string): string {
+export function newText(body: string): string {
   const lines: string[] = [];
   for (const line of body.split(/\r?\n/)) {
     if (/^>/.test(line) || /^On .+wrote:\s*$/.test(line) || /^-+\s*(Draft|Original Message)/i.test(line)) break;

@@ -29,9 +29,32 @@ export type CaseFile = {
   documents?: StudentDocument[];
   // When counselor@ last emailed the student what's missing (build step 5)
   missingItemsSentAt?: string;
+  // An agent's open question to the student; the student's next email to that agent resumes it.
+  waitingOn?: { agent: Agent; question: string; since: string };
+  // Emails sent to this student, for the 10-per-case loop guard.
+  outbound?: number;
   createdAt: string;
   updatedAt: string;
 };
+
+// Loop guard from the design doc: a case never gets more than this many emails from us.
+export const MAX_OUTBOUND_PER_CASE = 10;
+
+// Counts one more outbound email for the case. Returns false (and counts nothing) once the cap is reached.
+export async function claimOutbound(student: string): Promise<boolean> {
+  let allowed = false;
+  await updateMemory<CaseFile>(
+    caseKey(student),
+    () => {
+      throw new Error(`case file for ${student} disappeared`);
+    },
+    (current) => {
+      allowed = (current.outbound ?? 0) < MAX_OUTBOUND_PER_CASE;
+      return allowed ? { ...current, outbound: (current.outbound ?? 0) + 1 } : current;
+    },
+  );
+  return allowed;
+}
 
 export type TaskStatus = "queued" | "working" | "waiting_on_student" | "waiting_on_human" | "done";
 

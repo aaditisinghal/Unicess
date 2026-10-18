@@ -1,6 +1,6 @@
 // counselor@: emails the student every missing item with its deadline, right after ask@'s first reply.
 // The student's reply lands at counselor@, where the usual flow reads the documents and confirms what's still open.
-import { type CaseFile, caseKey } from "./cases";
+import { type CaseFile, caseKey, claimOutbound } from "./cases";
 import { openItems } from "./checklist";
 import { emit } from "./events";
 import { updateMemory } from "./memory";
@@ -23,7 +23,9 @@ export async function sendMissingItems(input: {
       ? `- ${i.label}, if the bank account is a parent's: due ${i.deadline}`
       : `- ${i.label}: due ${i.deadline}`,
   );
-  const askAboutAccount = open.some((i) => i.status === "if_parent");
+  // Ask whose account it is only once a statement is on file; before that the sponsor letter is just "if needed".
+  const statementOnFile = caseFile.checklist.some((i) => i.item === "funding_proof" && i.status === "received");
+  const askAboutAccount = statementOnFile && open.some((i) => i.status === "if_parent");
   const text = [
     `Hi${firstName ? ` ${firstName}` : ""},`,
     "",
@@ -39,6 +41,14 @@ export async function sendMissingItems(input: {
     "Halden University",
   ].join("\n");
   const subject = "Your Halden University application: what's still missing";
+  if (!(await claimOutbound(caseFile.student))) {
+    emit("shield", "Case reached its 10-email cap; counselor@ didn't send its missing-items email", {
+      student: caseFile.student,
+      agent: "counselor",
+      data: { kind: "cap" },
+    });
+    return;
+  }
 
   if (dryRun) {
     console.log(`[dry-run] counselor@ -> ${caseFile.student} (new thread, "${subject}"):\n${text}`);
@@ -53,11 +63,28 @@ export async function sendMissingItems(input: {
     student: caseFile.student,
     agent: "counselor",
     data: { items: open, text },
+    primitive: [
+      `client.send({ from: counselor@, to: student, subject: "${subject}" }, { idempotencyKey })${dryRun ? " (demo email: not sent)" : ""}`,
+    ],
   });
+  const question = "Whose bank account is the statement from?";
+  if (askAboutAccount) {
+    emit("ask_back", `counselor@ asked the student: "${question}" and is waiting for the answer`, {
+      student: caseFile.student,
+      agent: "counselor",
+      data: { question },
+      primitive: [`memories.set("case/${caseFile.student}", if_version): waitingOn counselor@`],
+    });
+  }
 
   await updateMemory<CaseFile>(
     caseKey(caseFile.student),
     () => caseFile,
-    (current) => ({ ...current, status: "waiting", missingItemsSentAt: new Date().toISOString() }),
+    (current) => ({
+      ...current,
+      status: "waiting",
+      missingItemsSentAt: new Date().toISOString(),
+      ...(askAboutAccount ? { waitingOn: { agent: "counselor" as const, question, since: new Date().toISOString() } } : {}),
+    }),
   );
 }

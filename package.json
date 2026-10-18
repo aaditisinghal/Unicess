@@ -14,7 +14,8 @@
     "replay": "tsx scripts/replay.ts",
     "reset": "tsx scripts/reset.ts",
     "demo": "tsx scripts/demo.ts",
-    "whoami": "tsx scripts/whoami.ts"
+    "whoami": "tsx scripts/whoami.ts",
+    "test": "node --import tsx --import ./test/setup.ts --test \"test/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

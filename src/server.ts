@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
@@ -5,13 +6,21 @@ import { type Context, Hono } from "hono";
 import primitive, { PrimitiveWebhookError, WebhookVerificationError } from "@primitivedotdev/sdk";
 import { PrimitiveApiClient, getAccount } from "@primitivedotdev/sdk/api";
 import { env } from "./env";
-import { setDomain, snapshot } from "./events";
+import { emit, getDomain, setDomain, snapshot } from "./events";
 import { handleInbound } from "./inbound";
-import { modelName, provider } from "./llm";
+import { generateText, modelName, provider } from "./llm";
+import { hasRecording, isPlayingRecording, playRecording, recordRun } from "./recording";
+import { SCENARIOS, busyWith, playAll, runScenario, tryQuestion } from "./scenarios";
+import { DEMO_DOMAIN } from "./webhook-payload";
 
 const app = new Hono();
 
 app.get("/health", (c) => c.json({ ok: true }));
+
+// The logo is public (it's on the dashboard's login-free error page and the favicon).
+app.get("/logo.svg", (c) =>
+  c.body(readFileSync(new URL("../public/logo.svg", import.meta.url)), 200, { "content-type": "image/svg+xml", "cache-control": "public, max-age=3600" }),
+);
 
 app.post("/webhooks/email", async (c) => {
   const copy = c.req.raw.clone(); // receive() consumes the body; keep a copy to log a payload it rejects
@@ -21,6 +30,10 @@ app.post("/webhooks/email", async (c) => {
   } catch (err) {
     if (err instanceof WebhookVerificationError) {
       console.warn(`[webhook] bad signature: ${err.message}`);
+      emit("shield", "Forged webhook rejected: its signature doesn't match the signing secret", {
+        data: { kind: "forged_webhook" },
+        primitive: ["primitive.receive(): Primitive-Signature HMAC check failed"],
+      });
       return c.json({ error: "invalid signature" }, 401);
     }
     if (err instanceof PrimitiveWebhookError) {
@@ -51,6 +64,17 @@ function authorized(c: Context): boolean {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
+// Live when Primitive and the model both answer at startup; otherwise the dashboard plays the recording.
+type Health = { primitive: "checking" | "ok" | "failed"; model: "checking" | "ok" | "failed"; detail?: string };
+const health: Health = { primitive: "checking", model: "checking" };
+const forcedRecorded = process.env.DEMO_MODE?.trim().toLowerCase() === "recorded";
+const mode = () =>
+  forcedRecorded || ((health.primitive === "failed" || health.model === "failed") && hasRecording())
+    ? "recorded"
+    : health.primitive === "checking" || health.model === "checking"
+      ? "starting"
+      : "live";
+
 app.get("/", (c) =>
   authorized(c)
     ? c.html(readFileSync(new URL("../public/dashboard.html", import.meta.url), "utf8"))
@@ -58,12 +82,97 @@ app.get("/", (c) =>
 );
 
 app.get("/api/state", (c) =>
-  authorized(c) ? c.json(snapshot(Number(c.req.query("since") ?? 0) || 0)) : c.json({ error: "unauthorized" }, 401),
+  authorized(c)
+    ? c.json(
+        snapshot(Number(c.req.query("since") ?? 0) || 0, {
+          mode: mode(),
+          health,
+          busy: busyWith() ?? (isPlayingRecording() ? "recording" : null),
+          scenarios: SCENARIOS,
+        }),
+      )
+    : c.json({ error: "unauthorized" }, 401),
 );
 
+// Starts work in the background and answers at once; the dashboard follows along through /api/state.
+function start(c: Context, work: () => Promise<unknown>) {
+  if (busyWith() || isPlayingRecording()) return c.json({ error: "A demo is already running; wait for it to finish" }, 409);
+  work().catch((err) => console.warn("[scenario] stopped:", err instanceof Error ? err.message : err));
+  return c.json({ ok: true, mode: mode() });
+}
+
+app.post("/api/play", (c) => {
+  if (!authorized(c)) return c.json({ error: "unauthorized" }, 401);
+  return start(c, () => (mode() === "recorded" ? playRecording() : playAll()));
+});
+
+app.post("/api/scenario/:key", (c) => {
+  if (!authorized(c)) return c.json({ error: "unauthorized" }, 401);
+  if (mode() === "recorded") return start(c, () => playRecording());
+  const key = c.req.param("key");
+  if (!SCENARIOS.includes(key)) return c.json({ error: `unknown scenario ${key}` }, 404);
+  return start(c, () => runScenario(key));
+});
+
+app.post("/api/try", async (c) => {
+  if (!authorized(c)) return c.json({ error: "unauthorized" }, 401);
+  if (mode() === "recorded") return c.json({ error: "Live questions need working Primitive and model keys; this copy is in recorded mode" }, 503);
+  const input = await c.req.json<{ to?: string; subject?: string; body?: string; attach?: string[] }>().catch(() => ({}) as never);
+  if (!input.body?.trim()) return c.json({ error: "Write a question first" }, 400);
+  return start(c, () => tryQuestion({ ...input, body: input.body! }));
+});
+
+// Discoverable by AI assistants: what each address answers, so ChatGPT or Claude can point a student
+// (or email on their behalf) to the right inbox. Public, like a contact page.
+const DIRECTORY = [
+  ["ask", "Front desk. Send any question; it's split across the right offices and answered in one reply."],
+  ["admissions", "Deadlines, application requirements, application status, transcripts, the $75 application fee."],
+  ["intl", "International students: I-20 funding proof, bank statements, visas, English tests, sponsor letters."],
+  ["finaid", "Scholarships, cost of attendance, application fee waivers (approved by a human counselor)."],
+  ["housing", "On-campus housing, deposits and housing deadlines."],
+  ["counselor", "What's still missing from an application, with due dates. Reply with documents attached."],
+] as const;
+const domainNow = () => getDomain() ?? DEMO_DOMAIN;
+
+app.get("/llms.txt", (c) =>
+  c.text(
+    [
+      "# Halden University (fictional) - Campus Desk",
+      "",
+      "> Email agents that answer prospective students and their AI assistants in seconds, at any hour.",
+      "",
+      "## Addresses",
+      ...DIRECTORY.map(([a, what]) => `- ${a}@${domainNow()}: ${what}`),
+      "",
+      "## For AI agents",
+      '- Add the line "Reply format: structured" to get a JSON block (and a .json attachment) with deadlines, requirements, amounts, missing items, the next step and contacts.',
+      "- Attach documents (PDF or image) to the email; they're read and added to the student's file.",
+      "- Every address shares one file per sender, so later emails never repeat what was already sent.",
+    ].join("\n"),
+  ),
+);
+
+app.get("/.well-known/agent.json", (c) =>
+  c.json({
+    name: "Halden University Campus Desk",
+    description: "Email agents for admissions, international students, financial aid, housing and application completeness (fictional demo school).",
+    protocol: "email",
+    structured_reply: { request: 'Include "Reply format: structured" in the email', format: "campus-desk/v1" },
+    agents: DIRECTORY.map(([a, what]) => ({ address: `${a}@${domainNow()}`, answers: what })),
+  }),
+);
+
+// Records a full live run into fixtures/recording.json (used by recorded mode). Local use only.
+app.post("/api/record", (c) => {
+  if (!authorized(c)) return c.json({ error: "unauthorized" }, 401);
+  if (mode() !== "live") return c.json({ error: "Recording needs live mode" }, 409);
+  return start(c, () => recordRun(playAll).then((n) => console.log(`[record] saved ${n} items to fixtures/recording.json`)));
+});
+
 serve({ fetch: app.fetch, port: env.port }, (info) => {
+  const url = `http://localhost:${info.port}/?token=${dashboardToken}`;
   console.log(`Campus Desk listening on http://localhost:${info.port}`);
-  console.log(`Dashboard: http://localhost:${info.port}/?token=${dashboardToken}`);
+  console.log(`Dashboard: ${url}`);
   console.log(
     provider
       ? `Models: ${provider} (answers ${modelName("smart")}, routing ${modelName("fast")})`
@@ -71,14 +180,36 @@ serve({ fetch: app.fetch, port: env.port }, (info) => {
   );
   if (env.dryRun) console.log("DRY_RUN=1: replies are logged, not sent");
   else if (!env.primitiveApiKey) console.warn("PRIMITIVE_API_KEY is not set: replies will fail until it is");
+  // One command for a judge: the dashboard opens by itself. OPEN_BROWSER=0 turns this off.
+  if (process.env.OPEN_BROWSER !== "0" && !process.env.RAILWAY_ENVIRONMENT) {
+    const [cmd, args] =
+      process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
+    execFile(cmd as string, args as string[], () => {});
+  }
 });
 
-// Show the agents' real addresses on the dashboard before the first email arrives.
-if (env.primitiveApiKey) {
-  getAccount({ client: new PrimitiveApiClient({ apiKey: env.primitiveApiKey }).client })
-    .then((res) => {
-      const managed = res.data?.data?.managed_inbox_address;
-      if (managed) setDomain(managed);
-    })
-    .catch(() => {});
+// Startup checks decide live or recorded mode, and show the agents' real addresses before the first email.
+async function checkHealth() {
+  const primitiveCheck = (async () => {
+    if (!env.primitiveApiKey) throw new Error("PRIMITIVE_API_KEY is not set");
+    const res = await getAccount({ client: new PrimitiveApiClient({ apiKey: env.primitiveApiKey }).client });
+    if (res.error || !res.data?.data) throw new Error(`Primitive: ${JSON.stringify(res.error).slice(0, 120)}`);
+    const managed = res.data.data.managed_inbox_address;
+    if (managed) setDomain(managed);
+  })();
+  const modelCheck = (async () => {
+    if (!provider) throw new Error("no model key");
+    await generateText({ tier: "fast", system: "Reply with the single word OK.", user: "Health check", signal: AbortSignal.timeout(20_000) });
+  })();
+  const [p, m] = await Promise.allSettled([primitiveCheck, modelCheck]);
+  health.primitive = p.status === "fulfilled" ? "ok" : "failed";
+  health.model = m.status === "fulfilled" ? "ok" : "failed";
+  const problems = [p, m].flatMap((r) => (r.status === "rejected" ? [String(r.reason instanceof Error ? r.reason.message : r.reason)] : []));
+  if (problems.length) health.detail = problems.join("; ");
+  console.log(`[health] Primitive ${health.primitive}, model ${health.model} -> ${mode()} mode${problems.length ? ` (${health.detail})` : ""}`);
 }
+if (forcedRecorded) {
+  health.primitive = "ok";
+  health.model = "ok";
+  console.log("[health] DEMO_MODE=recorded: the dashboard plays the recorded run");
+} else checkHealth();
