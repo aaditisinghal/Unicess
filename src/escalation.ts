@@ -25,6 +25,8 @@ export type Escalation = {
   status: "waiting" | "approved" | "edited";
   // approval: a decision only staff can make. gap: a question the knowledge file couldn't answer.
   kind?: "approval" | "gap";
+  // For an approval: which layers asked for a human (office flag, keyword rule, request check).
+  reason?: string;
   createdAt: string;
   resolvedAt?: string;
 };
@@ -40,8 +42,9 @@ export async function escalate(input: {
   draft: string;
   domain: string;
   kind?: "approval" | "gap";
+  reason?: string;
 }): Promise<void> {
-  const { email, student, agent, request, draft, domain } = input;
+  const { email, student, agent, request, draft, domain, reason } = input;
   const kind = input.kind ?? "approval";
   const ref = `${email.id}/${agent}`;
   const staff = env.staffAddresses[0] ?? null;
@@ -58,6 +61,7 @@ export async function escalate(input: {
     references: email.thread.references,
     status: "waiting",
     kind,
+    ...(reason ? { reason } : {}),
     createdAt: new Date().toISOString(),
   };
   // Create-only, so a webhook retry never sends staff a second copy.
@@ -68,7 +72,7 @@ export async function escalate(input: {
     emit("escalation", `Waiting for staff review in the portal: ${request}`, {
       student,
       agent,
-      data: { ref, staff: null, draft, kind, request },
+      data: { ref, staff: null, draft, kind, request, reason },
       primitive: [`memories.set("escalation/${ref.slice(0, 14)}…", if_absent): waiting_on_human`],
     });
     return;
@@ -84,6 +88,7 @@ export async function escalate(input: {
       : [
           `${student} asked: ${request}`,
           "",
+          ...(reason ? [`Why this needs you: ${reason}.`, ""] : []),
           "Reply APPROVE to send this draft to the student, or reply with your own version and that will be sent instead.",
           "",
           "--- Draft ---",
@@ -97,7 +102,7 @@ export async function escalate(input: {
   emit("escalation", kind === "gap" ? `Asked ${staff} for an answer ${agent}@ doesn't have: ${request}` : `Draft sent to ${staff} for approval: ${request}`, {
     student,
     agent,
-    data: { ref, staff, draft, kind, request },
+    data: { ref, staff, draft, kind, request, reason },
     primitive: [
       `memories.set("escalation/${ref.slice(0, 14)}…", if_absent): waiting_on_human`,
       `client.send({ from: ${agent}@, to: ${staff} })${env.dryRun || isReplay(ref) ? " (demo email: not sent)" : ""}`,

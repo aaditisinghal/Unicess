@@ -140,6 +140,7 @@
   .lbl { font: 500 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
   .lbl + * { margin-top: 0; }
   .req { margin: 0 0 16px; font-size: 15px; color: var(--ink); }
+  .why { margin: 0 0 16px; font-size: 13.5px; color: var(--warn); }
   .draft { margin: 0 0 16px; padding: 12px 14px; background: var(--paper); border-left: 2px solid var(--rule-strong); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink2); font-size: 14px; }
   .item textarea { display: block; width: 100%; min-height: 120px; resize: vertical; padding: 12px 14px; border: 1px solid var(--rule-strong); background: #fff; font: 14px/1.55 var(--sans); color: var(--ink); margin: 0 0 8px; }
   .item textarea:focus { outline: 0; border-color: var(--accent); }
@@ -329,7 +330,7 @@ function queue() {
   return events.filter((e) => e.type === "escalation" && e.data?.ref).filter((e) => !seen.has(e.data.ref) && seen.add(e.data.ref)).map((e) => ({
     ref: e.data.ref, kind: e.data.kind ?? "approval", agent: e.agent, student: e.student, at: e.at,
     request: e.data.request ?? e.text.replace(/^[^:]+:\s*/, ""), draft: e.data.draft ?? "",
-    demo: e.data.ref.startsWith("replay_"), done: resolved.get(e.data.ref) ?? null,
+    demo: e.data.ref.startsWith("replay_"), done: resolved.get(e.data.ref) ?? null, reason: e.data.reason ?? null,
   })).reverse();
 }
 function conversations() {
@@ -466,6 +467,7 @@ function reviewItem(x) {
     el("span", { class: "who" }, nameOf(x.student)), el("span", { class: "sub" }, x.student), addr(x.agent),
     el("span", { class: "age" }, x.done ? `Resolved ${clock(x.done.at)}` : `Waiting ${ago(x.at)}`));
   const body = el("div", { class: "item-b" }, el("div", { class: "lbl" }, "Request"), el("p", { class: "req" }, x.request));
+  if (x.reason) body.append(el("div", { class: "lbl" }, "Why it needs you"), el("p", { class: "why" }, x.reason[0].toUpperCase() + x.reason.slice(1) + "."));
   if (x.done) {
     const by = x.done.data?.staff ?? "staff";
     body.append(el("div", { class: "resolved-line" }, el("b", {}, x.done.data?.status === "approved" ? "Approved" : "Answered"), `by ${by}${x.done.data?.via === "portal" ? " in the portal" : " by email"}, at ${clock(x.done.at)}.`),

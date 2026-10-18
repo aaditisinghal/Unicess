@@ -1,7 +1,7 @@
 // Runs the department agents in parallel, saves their sections, and merges them into one reply.
 import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { OFFICES, type StudentFacts, runAgent, writeNextStep } from "./agents";
-import { UNDER_REVIEW, WAIVER_DRAFT, requiresApproval } from "./approval";
+import { REQUEST_UNDER_REVIEW, UNDER_REVIEW, WAIVER_DRAFT, approvalByModel, approvalByRule, approvalReason } from "./approval";
 import { type Agent, type CaseFile, type Task, type TaskStatus, caseKey, taskKey } from "./cases";
 import { escalate } from "./escalation";
 import { emit } from "./events";
@@ -35,12 +35,19 @@ export async function answerEmail(input: {
 
   const runOne = async ({ agent, question }: Work): Promise<Result> => {
     try {
-      const out = await runAgent({ agent, question, subject: email.subject, body, caseFile, signal: hardLimit });
-      // Waivers are forced to a human in code; the student hears it's under review, and staff get a draft.
-      if (requiresApproval(agent, `${question}\n${email.subject ?? ""}\n${body}`)) {
+      // The office answers while the fast model screens its part of the email; the check never holds the answer long.
+      const [out, check] = await Promise.all([
+        runAgent({ agent, question, subject: email.subject, body, caseFile, signal: hardLimit }),
+        approvalByModel(question, AbortSignal.any([hardLimit, AbortSignal.timeout(8_000)])),
+      ]);
+      // A request only staff may grant goes to them if any layer says so: the office's flag, the rule, or the check.
+      const rule = approvalByRule(agent, question, `${email.subject ?? ""}\n${body}`);
+      const why = approvalReason({ agentFlag: out.needs_human, rule, check });
+      if (why) {
+        // Without a draft from the office, staff approve its own answer; a waiver gets the standard approval text.
+        out.draft_if_approved ??= rule === "fee waiver" ? WAIVER_DRAFT : out.section;
         out.needs_human = true;
-        out.draft_if_approved ??= WAIVER_DRAFT;
-        if (!/\b(counsel|review|human|staff)/i.test(out.section)) out.section = UNDER_REVIEW;
+        if (!/\b(counsel|review|human|staff)/i.test(out.section)) out.section = rule === "fee waiver" ? UNDER_REVIEW : REQUEST_UNDER_REVIEW;
       }
       // Two reasons to bring in a human: a decision only staff can make, or a question the knowledge file can't answer.
       const kind = out.needs_human && out.draft_if_approved ? "approval" : out.knowledge_gap ? "gap" : null;
@@ -56,7 +63,7 @@ export async function answerEmail(input: {
       // A request only a human can grant: the student hears it's being reviewed; staff get the draft.
       // If staff can't be emailed, the student's answer still goes out; the escalation stays waiting.
       if (escalated) {
-        await escalate({ email, student, agent, request: question, draft: out.draft_if_approved ?? out.section, domain, kind: kind! }).catch((err) => {
+        await escalate({ email, student, agent, request: question, draft: out.draft_if_approved ?? out.section, domain, kind: kind!, reason: kind === "approval" ? (why ?? undefined) : undefined }).catch((err) => {
           const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
           console.warn(`[escalation] couldn't email staff for ${agent}@: ${reason}`);
           emit("escalation", `Couldn't email staff: ${reason}`, { student, agent, data: { failed: true } });

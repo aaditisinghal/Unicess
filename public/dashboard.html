@@ -809,7 +809,7 @@ function eventRow(e) {
     if (e.data?.failed) return row("escalation", "STAFF", "Could not reach a counselor", e.text);
     return e.data?.kind === "gap"
       ? row("escalation", "STAFF", `${e.agent}@ had no answer and asked ${e.data?.staff ?? "a counselor"} for one`, "Agents do not guess. The applicant is told a counselor will reply, and staff receive the question.")
-      : row("escalation", "STAFF", `Draft sent to ${e.data?.staff ?? "a counselor"} for approval`, "Nothing reaches the applicant until staff reply APPROVE or send an edit.");
+      : row("escalation", "STAFF", `Draft sent to ${e.data?.staff ?? "a counselor"} for approval`, `${e.data?.reason ? `Why: ${e.data.reason}. ` : ""}Nothing reaches the applicant until staff reply APPROVE or send an edit.`);
   }
   if (e.type === "approval") return row("approval", "SENT", e.data?.status === "edited" ? "Staff edited the answer; it went to the applicant" : "Staff approved; the answer went to the applicant", e.data?.staff ? `From ${e.data.staff}` : e.text);
   if (e.type === "followup") return row("approval", "SENT", `Late answer from ${e.agent}@ sent as a follow-up in the same thread`, `${secs(e.data?.ms)} s after arrival. The main reply did not wait for it.`);
