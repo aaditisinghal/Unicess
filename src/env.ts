@@ -12,8 +12,8 @@ function required(name: string): string {
 
 export const env = {
   port: Number(process.env.PORT ?? 3000),
-  primitiveApiKey: required("PRIMITIVE_API_KEY"),
   webhookSecret: required("PRIMITIVE_WEBHOOK_SECRET"),
-  domain: required("PRIMITIVE_DOMAIN").toLowerCase(),
+  // Optional at startup so the webhook can be tested before sending is set up; checked on first send.
+  primitiveApiKey: process.env.PRIMITIVE_API_KEY?.trim() || undefined,
   dryRun: process.env.DRY_RUN === "1",
 };

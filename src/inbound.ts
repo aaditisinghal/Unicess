@@ -12,10 +12,10 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
 
   const sender = email.sender.address.toLowerCase();
   const recipient = email.receivedBy.toLowerCase();
-  const agent = recipient.split("@")[0];
+  const [agent, ourDomain] = recipient.split("@");
 
   // Never answer our own addresses: that is how two agents end up replying to each other forever.
-  if (sender.endsWith(`@${env.domain}`)) {
+  if (sender.endsWith(`@${ourDomain}`)) {
     console.log(`[skip] ${sender} -> ${recipient}: sent from one of our own addresses`);
     return;
   }
@@ -34,6 +34,6 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
   }
 
   // The key makes a webhook retry of this event return the first reply instead of sending a second.
-  await mail.reply(email, { text }, { idempotencyKey: `${email.eventId}:${agent}:echo` });
+  await mail().reply(email, { text }, { idempotencyKey: `${email.eventId}:${agent}:echo` });
   console.log(`[reply] ${agent}@ -> ${sender} in ${Date.now() - startedAt} ms`);
 }

@@ -59,6 +59,8 @@ fixtures/          synthetic bank statement and TOEFL PDFs                      
 
 After step 7: feature freeze at 4:00 AM. Sleep 4:00-7:00. Rehearse 7:00-8:30, resetting the case before each run, and record the backup video. Write the README and submit 8:30-9:45.
 
+**Spam:** Gmail files replies from `cool-jay.primitive.email` as spam (seen in step 1, even though delivery and DKIM passed). On every inbox used in the demo, mark the first reply "Not spam" and add the agent addresses to contacts before going on stage. Tell judges who email `ask@` to check Spam. A verified custom domain might help, but only if there's time after step 7.
+
 ## Claude API choices (steps 2-6)
 
 - Models, per the design doc: `claude-haiku-5-5` for routing and field extraction, `claude-sonnet-5-5` for answers and reading PDFs. Set `output_config.effort` explicitly on each call.
