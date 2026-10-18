@@ -52,7 +52,7 @@ export async function runStudentAgent(input: {
   const missing1 = j1?.missing_items ?? [];
   step(
     j1
-      ? `Parsed the JSON: ${missing1.length} missing item(s): ${missing1.map((m) => m.item).join(", ") || "none"}; next step "${j1.next_step ?? "–"}"`
+      ? `Parsed the JSON: ${missing1.length} missing item(s): ${missing1.map((m) => m.item).join(", ") || "none"}; next step "${j1.next_step ?? "none given"}"`
       : "The reply had no JSON block; reading it as plain text",
     { parsed: j1 ?? null },
   );

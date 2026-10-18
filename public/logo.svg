@@ -1,27 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Campus Desk">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6366f1"/>
-      <stop offset=".55" stop-color="#7c3aed"/>
-      <stop offset="1" stop-color="#c026d3"/>
-    </linearGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#g)"/>
-  <rect width="64" height="32" rx="16" fill="url(#shine)"/>
-  <!-- graduation cap -->
-  <path d="M32 9 L49 16 L32 23 L15 16 Z" fill="#fff"/>
-  <path d="M22 19.5 V24 C22 26.4 26.5 28 32 28 C37.5 28 42 26.4 42 24 V19.5 L32 23.5 Z" fill="#fff" opacity=".9"/>
-  <path d="M47 17 V25" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="47" cy="26.5" r="1.8" fill="#fde68a"/>
-  <!-- envelope -->
-  <rect x="14" y="31" width="36" height="23" rx="4" fill="#fff"/>
-  <path d="M15.5 33 L32 44.5 L48.5 33" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- agents: three nodes on the envelope -->
-  <circle cx="22" cy="49.5" r="2" fill="#0d9488"/>
-  <circle cx="32" cy="49.5" r="2" fill="#d97706"/>
-  <circle cx="42" cy="49.5" r="2" fill="#e11d48"/>
+  <!-- An inbox tray: one desk, every office's mail. Flat, two colors. -->
+  <rect width="64" height="64" rx="6" fill="#0b6e4f"/>
+  <path d="M13 20h38v26H13z" fill="none" stroke="#f4f2ec" stroke-width="4"/>
+  <path d="M13 34h11l4 5h8l4-5h11" fill="none" stroke="#f4f2ec" stroke-width="4" stroke-linejoin="miter"/>
+  <path d="M22 26h20" stroke="#f4f2ec" stroke-width="3"/>
 </svg>
