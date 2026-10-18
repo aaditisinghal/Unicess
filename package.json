@@ -10,14 +10,18 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "replay": "tsx scripts/replay.ts",
+    "reset": "tsx scripts/reset.ts",
+    "whoami": "tsx scripts/whoami.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
     "@hono/node-server": "^2.1.5",
     "@primitivedotdev/sdk": "^2.4.0",
     "hono": "^4.13.13",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
