@@ -1,7 +1,8 @@
 // Posts a signed fake inbound email to the local server, so flows can be tested without sending real mail.
 // The server logs its reply instead of sending it, because the email id starts with "replay_".
 // Usage: npm run replay -- [--to intl] [--from student@example.com] [--subject "..."] [--body "..."]
-import { randomBytes, randomUUID } from "node:crypto";
+//                          [--attach bank-statement.pdf] (a file in fixtures/; repeat for more)
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { signWebhookPayload } from "@primitivedotdev/sdk/webhook";
@@ -17,10 +18,24 @@ const { values } = parseArgs({
     body: {
       type: "string",
       default:
-        "Hi, I'm applying for Fall 2027 as an international student from India. " +
-        "How much do I need to show for my I-20, and can I get on-campus housing?",
+        "Hi, I'm Priya Sharma, applying for Fall 2027 as an international student from India. " +
+        "How much do I need to show for my I-20, and can I get on-campus housing? My bank statement is attached.\n\nPriya",
     },
+    attach: { type: "string", multiple: true, default: [] },
   },
+});
+
+const attachments = values.attach.map((filename, i) => {
+  const bytes = readFileSync(new URL(`../fixtures/${filename}`, import.meta.url));
+  const type = filename.endsWith(".pdf") ? "application/pdf" : filename.endsWith(".png") ? "image/png" : "image/jpeg";
+  return {
+    filename,
+    content_type: type,
+    size_bytes: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    part_index: i + 1,
+    tar_path: `${i + 1}_${filename}`,
+  };
 });
 
 const to = values.to.includes("@") ? values.to : `${values.to}@${DOMAIN}`;
@@ -43,6 +58,9 @@ event.email = {
     body_text: values.body,
     body_html: null,
     to_addresses: [{ address: to, name: null }],
+    attachments,
+    // The server reads replayed attachments from fixtures/, so this URL is never fetched.
+    attachments_download_url: attachments.length > 0 ? "https://replay.invalid/attachments.tar.gz" : null,
   },
 };
 

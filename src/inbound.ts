@@ -1,8 +1,9 @@
 import type { ReceivedEmail } from "@primitivedotdev/sdk";
 import { answerEmail } from "./answer";
-import { type Agent, createTasks, isAgent, recordInbound } from "./cases";
+import { readAttachments } from "./attachments";
+import { type Agent, type CaseFile, caseKey, createTasks, isAgent, recordInbound } from "./cases";
 import { env } from "./env";
-import { createMemory } from "./memory";
+import { createMemory, readMemory } from "./memory";
 import { mail } from "./primitive";
 import { routeEmail } from "./router";
 
@@ -33,18 +34,30 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     return;
   }
 
-  const caseFile = await recordInbound(email, sender, recipient);
+  let caseFile = await recordInbound(email, sender, recipient);
   const body = email.text ?? "";
 
   // ask@ (or an unknown address) splits the email across departments; a department address answers alone.
+  // Attachments are read at the same time, so documents don't add to the wait.
   const agent: Agent = isAgent(localPart) ? localPart : "ask";
-  const work =
-    agent === "ask"
-      ? (await routeEmail(email.subject, body)).map((t) => ({ agent: t.department as Agent, question: t.question }))
-      : [{ agent, question: body.slice(0, 500) }];
+  const [routed, documents] = await Promise.all([
+    agent === "ask" ? routeEmail(email.subject, body) : null,
+    readAttachments(email, sender).catch((err) => {
+      console.warn("[attachments] failed:", err instanceof Error ? err.message : err);
+      return [];
+    }),
+  ]);
+  const work = routed
+    ? routed.map((t) => ({ agent: t.department as Agent, question: t.question }))
+    : [{ agent, question: body.slice(0, 500) }];
+  // Funding proof and English scores are intl@'s to check, even when the question doesn't name them.
+  if (agent === "ask" && documents.some((d) => d.kind !== "other") && !work.some((w) => w.agent === "intl")) {
+    work.push({ agent: "intl", question: "Check the attached documents against the requirements." });
+  }
   await createTasks(email, sender, work);
+  if (documents.length > 0) caseFile = (await readMemory<CaseFile>(caseKey(sender)))?.value ?? caseFile;
   console.log(
-    `[case] ${sender}: email ${caseFile.emails.length} on file, tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`,
+    `[case] ${sender}: email ${caseFile.emails.length} on file, ${documents.length} document(s) read, tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`,
   );
 
   const text = await answerEmail({

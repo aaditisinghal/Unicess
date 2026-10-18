@@ -32,7 +32,33 @@ async function withGeminiFallback<T>(tier: Tier, signal: AbortSignal | undefined
   throw new Error("unreachable");
 }
 
-type Request = { tier: Tier; system: string; user: string; signal?: AbortSignal };
+// A PDF or image sent along with the prompt, base64-encoded.
+export type InputFile = { mimeType: string; data: string };
+
+type Request = { tier: Tier; system: string; user: string; files?: InputFile[]; signal?: AbortSignal };
+
+// Files go before the text, as both providers recommend.
+function claudeContent(req: Request) {
+  if (!req.files?.length) return req.user;
+  return [
+    ...req.files.map((f) =>
+      f.mimeType === "application/pdf"
+        ? { type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data: f.data } }
+        : {
+            type: "image" as const,
+            source: { type: "base64" as const, media_type: f.mimeType as "image/png" | "image/jpeg" | "image/webp", data: f.data },
+          },
+    ),
+    { type: "text" as const, text: req.user },
+  ];
+}
+
+function geminiContents(req: Request) {
+  if (!req.files?.length) return req.user;
+  return [
+    { role: "user", parts: [...req.files.map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })), { text: req.user }] },
+  ];
+}
 
 let anthropic: Anthropic | undefined;
 let gemini: GoogleGenAI | undefined;
@@ -59,7 +85,7 @@ export async function generateJson<S extends z.ZodType>(req: Request & { schema:
         max_tokens: 8000,
         system: req.system,
         output_config: { effort: "low", format: betaZodOutputFormat(req.schema) },
-        messages: [{ role: "user", content: req.user }],
+        messages: [{ role: "user", content: claudeContent(req) }],
         // Sonnet re-runs a safety-classifier decline on a fallback model instead of stalling the reply.
         ...(req.tier === "smart" ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       },
@@ -76,7 +102,7 @@ export async function generateJson<S extends z.ZodType>(req: Request & { schema:
     const response = await withGeminiFallback(req.tier, req.signal, (model) =>
       geminiClient().models.generateContent({
         model,
-        contents: req.user,
+        contents: geminiContents(req),
         config: {
           systemInstruction: req.system,
           responseMimeType: "application/json",

@@ -19,6 +19,7 @@ const knowledge = Object.fromEntries(
 
 // What an agent learned about the student; null means "not stated".
 const Facts = z.object({
+  student_name: z.string().nullable().describe("The student's own name, as they state or sign it"),
   country: z.string().nullable().describe("Country the student is applying from"),
   term: z.string().nullable().describe("Intended start term, e.g. Fall 2027"),
   stage: z.enum(["prospective", "applicant", "admitted"]).nullable(),
@@ -59,11 +60,11 @@ export type AgentInput = {
 };
 
 export async function runAgent({ agent, question, subject, body, caseFile, signal }: AgentInput) {
-  const { facts, checklist, emails } = caseFile;
+  const { facts, checklist, emails, documents = [] } = caseFile;
   return generateJson({
     tier: "smart",
     system: systemPrompt(agent),
-    user: `<case_file>\n${JSON.stringify({ facts, checklist, emails }, null, 2)}\n</case_file>\n\n<email subject="${subject ?? ""}">\n${body}\n</email>\n\n<your_part>${question}</your_part>`,
+    user: `<case_file>\n${JSON.stringify({ facts, checklist, emails, documents }, null, 2)}\n</case_file>\n\n<email subject="${subject ?? ""}">\n${body}\n</email>\n\n<your_part>${question}</your_part>`,
     schema: AgentOutput,
     signal,
   });

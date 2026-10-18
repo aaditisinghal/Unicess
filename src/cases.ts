@@ -1,5 +1,6 @@
 // The case file: one per student, keyed by their email address, shared by every agent.
 import type { ReceivedEmail } from "@primitivedotdev/sdk";
+import type { StudentDocument } from "./attachments";
 import { createMemory, updateMemory } from "./memory";
 
 export const AGENTS = ["ask", "admissions", "intl", "finaid", "housing", "counselor"] as const;
@@ -23,6 +24,7 @@ export type CaseFile = {
   facts: Record<string, unknown>;
   checklist: ChecklistItem[];
   emails: { id: string; to: string; subject: string | null; at: string }[];
+  documents?: StudentDocument[];
   createdAt: string;
   updatedAt: string;
 };
