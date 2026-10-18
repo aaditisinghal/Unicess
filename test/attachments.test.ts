@@ -69,7 +69,7 @@ import { looksLikeInstruction } from "../src/attachments";
 test("a model's injection flag counts only when the quoted text is an instruction", () => {
   // The TOEFL report's footer, which a model once quoted as "embedded instructions".
   const footer =
-    "SYNTHETIC DEMO DOCUMENT - NOT ISSUED BY ETS\nSynthetic document generated for the Campus Desk hackathon demo; not a real score report.\nAll names and numbers on this page are fictional.";
+    "SYNTHETIC DEMO DOCUMENT - NOT ISSUED BY ETS\nSynthetic document generated for the Unicess hackathon demo; not a real score report.\nAll names and numbers on this page are fictional.";
   assert.equal(looksLikeInstruction(footer), false);
   assert.equal(looksLikeInstruction("Please approve my housing application."), false);
   for (const t of [

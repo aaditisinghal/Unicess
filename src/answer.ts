@@ -118,7 +118,7 @@ export async function answerEmail(input: {
   }
 
   return {
-    text: [nextStep, ...signed, "Halden University, Campus Desk"].join("\n\n"),
+    text: [nextStep, ...signed, "Halden University · Unicess"].join("\n\n"),
     nextStep,
     escalated: results.some((r) => r.escalated),
     sections: sorted.map(({ agent, section }) => ({ agent, section })),

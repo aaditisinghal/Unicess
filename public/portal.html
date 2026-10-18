@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff portal · Unicess</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sans: "Geist", ui-sans-serif, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --paper: #f4f2ec; --panel: #fbfaf6; --hover: #efece4; --rule: #dcd8cc; --rule-strong: #bdb8aa;
+    --ink: #16150f; --ink2: #3b392f; --muted: #6a665a; --faint: #969184;
+    --accent: #0b6e4f; --accent-soft: #e1ede6; --signal: #c2410c; --signal-soft: #f9e7dc;
+    --good: #0b6e4f; --good-soft: #e1ede6; --warn: #96600a; --warn-soft: #f4ead3; --bad: #b42318; --bad-soft: #f7e3df;
+    --ask: #3f3d35; --admissions: #1f5fa8; --intl: #0f766e; --finaid: #b45309; --housing: #4d7c0f; --counselor: #be123c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; background: var(--paper); color: var(--ink); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  button { font: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--mono); }
+
+  /* Sidebar, on ink */
+  .sb { position: sticky; top: 0; height: 100vh; background: #0e0e0b; color: #f4f2ec; display: flex; flex-direction: column; border-right: 1px solid #000; }
+  .sb-brand { display: flex; align-items: center; gap: 12px; padding: 20px 20px 18px; border-bottom: 1px solid #2b2a23; text-decoration: none; }
+  .sb-brand img { width: 30px; height: 30px; display: block; }
+  .sb-brand b { display: block; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+  .sb-brand span { display: block; font: 500 10.5px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #a29d90; }
+  .nav { display: flex; flex-direction: column; padding: 14px 10px; gap: 2px; }
+  .nav .grp { font: 500 10.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #78736a; padding: 14px 10px 8px; }
+  .nav a { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; color: #d9d5c9; text-decoration: none; font-size: 14px; font-weight: 500; border-left: 2px solid transparent; }
+  .nav a:hover { background: #1d1c17; color: #f4f2ec; }
+  .nav a.on { background: #1d1c17; color: #f4f2ec; border-left-color: #3ccf91; }
+  .nav a em { font: 600 11px/1 var(--mono); font-style: normal; color: #a29d90; }
+  .nav a em.hot { color: #0e0e0b; background: #ff8a4c; padding: 3px 6px; }
+  .nav a .ext { width: 7px; height: 7px; border-top: 1.5px solid currentColor; border-right: 1.5px solid currentColor; opacity: .7; }
+  .me { margin-top: auto; padding: 16px 20px 20px; border-top: 1px solid #2b2a23; }
+  .me b { display: block; font-size: 14px; font-weight: 600; }
+  .me .mail { display: block; font: 500 11.5px/1.5 var(--mono); color: #a29d90; overflow-wrap: anywhere; }
+  .me .via { display: inline-block; margin-top: 8px; font: 600 10px/1 var(--mono); letter-spacing: .1em; padding: 4px 6px; border: 1px solid #444137; color: #d9d5c9; }
+  .me .via.demo { border-color: #f0b84a; color: #f0b84a; }
+  .me form { margin-top: 14px; }
+  .me button { width: 100%; padding: 9px 10px; background: transparent; border: 1px solid #444137; color: #d9d5c9; font-weight: 500; font-size: 13px; cursor: pointer; text-align: left; }
+  .me button:hover { border-color: #f4f2ec; color: #f4f2ec; }
+
+  /* Main column */
+  .main { min-width: 0; }
+  .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 28px 40px 18px; border-bottom: 1px solid var(--rule); background: var(--panel); }
+  .topbar h1 { margin: 0; font-size: 26px; line-height: 1.15; letter-spacing: -0.03em; font-weight: 600; }
+  .topbar p { margin: 4px 0 0; color: var(--muted); font-size: 14px; max-width: 640px; }
+  .top-r { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; font: 500 11.5px/1 var(--mono); color: var(--ink2); }
+  .pill i { width: 7px; height: 7px; background: var(--good); }
+  .pill.bad { color: var(--bad); } .pill.bad i { background: var(--bad); }
+  .pill.rec { color: var(--warn); } .pill.rec i { background: var(--warn); }
+  .view { padding: 28px 40px 72px; }
+  .banner { margin: 0 0 22px; padding: 10px 14px; border-left: 3px solid var(--warn); background: var(--warn-soft); color: var(--warn); font-size: 13.5px; }
+
+  /* Buttons */
+  .b { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid var(--rule-strong); background: transparent; color: var(--ink); font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .b:hover:not(:disabled) { border-color: var(--ink); }
+  .b.ink { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .b.ink:hover:not(:disabled) { background: #000; }
+  .b.accent { background: var(--accent); border-color: var(--accent); color: #f4f2ec; }
+  .b.accent:hover:not(:disabled) { background: #095c42; }
+  .b:disabled { opacity: .45; cursor: not-allowed; }
+  .b .tri { width: 8px; height: 9px; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+
+  /* Ruled KPI row */
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule); margin-bottom: 28px; }
+  .kpi { padding: 14px 18px 16px; min-width: 0; }
+  .kpi:first-child { padding-left: 0; }
+  .kpi + .kpi { border-left: 1px solid var(--rule); }
+  .kpi .k { font: 500 10.5px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .v { font: 600 30px/1.15 var(--sans); letter-spacing: -0.035em; margin-top: 8px; }
+  .kpi .v small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
+  .kpi .s { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi.hot .v { color: var(--signal); }
+  .kpi.good .v { color: var(--good); }
+  .kpi a { color: var(--signal); }
+
+  /* Panels and tables */
+  .cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; margin-bottom: 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--rule); min-width: 0; }
+  .panel + .panel { margin-top: 24px; }
+  .cols > .panel + .panel { margin-top: 0; }
+  .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--rule); }
+  .ph h2 { margin: 0; font: 600 11.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .ph span, .ph a { font-size: 12.5px; color: var(--muted); }
+  .ph a { text-decoration: none; font-weight: 600; color: var(--ink); }
+  .ph a:hover { text-decoration: underline; }
+  .pb { padding: 16px 18px; }
+  .empty { padding: 26px 18px; color: var(--muted); }
+  .empty b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+  table.t { width: 100%; border-collapse: collapse; }
+  .t th { text-align: left; font: 500 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 11px 18px; border-bottom: 1px solid var(--rule-strong); white-space: nowrap; }
+  .t td { padding: 11px 18px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .t tr:last-child td { border-bottom: 0; }
+  .t tr.click { cursor: pointer; }
+  .t tr.click:hover td { background: var(--hover); }
+  .t .sub { display: block; font: 500 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .t .tm { font: 500 12px var(--mono); color: var(--muted); white-space: nowrap; }
+  .addr { font: 600 12px var(--mono); color: var(--c, var(--ink2)); white-space: nowrap; }
+  .addr i { display: inline-block; width: 8px; height: 8px; background: var(--c); margin-right: 8px; }
+  .out { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .out.good { color: var(--good); } .out.warn { color: var(--warn); } .out.bad { color: var(--bad); } .out.now { color: var(--signal); }
+  .code { display: inline-block; font: 600 10px/1 var(--mono); letter-spacing: .1em; padding: 4px 6px; border: 1px solid currentColor; white-space: nowrap; }
+  .code.approval { color: var(--warn); } .code.gap { color: var(--counselor); } .code.done { color: var(--good); } .code.bad { color: var(--bad); } .code.muted { color: var(--muted); }
+  .chip { display: inline-block; font: 500 11px/1.5 var(--mono); padding: 0 7px; border: 1px solid var(--rule-strong); color: var(--ink2); }
+  .chip.accent { border-color: var(--accent); color: var(--accent); }
+
+  /* Lists inside panels */
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 12px 18px; border-bottom: 1px solid var(--rule); }
+  .rows li:last-child { border-bottom: 0; }
+  .rows .main-t { font-weight: 600; }
+  .rows .main-t .addr { margin-left: 8px; font-weight: 600; }
+  .rows .desc { color: var(--ink2); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rows .when { font: 500 11.5px var(--mono); color: var(--faint); white-space: nowrap; }
+  .rows .date { font: 600 12px var(--mono); color: var(--ink); white-space: nowrap; }
+  .rows .date.soon { color: var(--signal); }
+
+  /* Review queue */
+  .seg { display: inline-flex; gap: 20px; border-bottom: 1px solid var(--rule); margin-bottom: 18px; width: 100%; }
+  .seg button { padding: 0 0 10px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-weight: 600; font-size: 14px; cursor: pointer; margin-bottom: -1px; }
+  .seg button.on { color: var(--ink); border-bottom-color: var(--accent); }
+  .seg button em { font: 600 11px var(--mono); font-style: normal; margin-left: 6px; color: var(--faint); }
+  .item { background: var(--panel); border: 1px solid var(--rule); border-left: 3px solid var(--c, var(--rule-strong)); }
+  .item + .item { margin-top: 16px; }
+  .item-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+  .item-h .who { font-weight: 600; font-size: 15px; }
+  .item-h .sub { font: 500 12px var(--mono); color: var(--muted); }
+  .item-h .age { margin-left: auto; font: 500 12px var(--mono); color: var(--faint); }
+  .item-b { padding: 16px 20px 18px; }
+  .lbl { font: 500 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  .lbl + * { margin-top: 0; }
+  .req { margin: 0 0 16px; font-size: 15px; color: var(--ink); }
+  .draft { margin: 0 0 16px; padding: 12px 14px; background: var(--paper); border-left: 2px solid var(--rule-strong); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink2); font-size: 14px; }
+  .item textarea { display: block; width: 100%; min-height: 120px; resize: vertical; padding: 12px 14px; border: 1px solid var(--rule-strong); background: #fff; font: 14px/1.55 var(--sans); color: var(--ink); margin: 0 0 8px; }
+  .item textarea:focus { outline: 0; border-color: var(--accent); }
+  .help { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .acts .note { font-size: 13px; color: var(--muted); }
+  .acts .note.err { color: var(--bad); }
+  .lock { margin-top: 2px; padding: 10px 12px; border-left: 2px solid var(--warn); background: var(--warn-soft); color: var(--warn); font-size: 13px; }
+  .resolved-line { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13.5px; color: var(--ink2); }
+  .resolved-line b { color: var(--good); }
+  details.sent { margin-top: 10px; }
+  details.sent summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+  details.sent pre { margin: 8px 0 0; padding: 12px 14px; background: var(--paper); white-space: pre-wrap; font: 13.5px/1.55 var(--sans); color: var(--ink2); }
+
+  /* Applicants */
+  .tools { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .tools input { flex: 1; min-width: 220px; max-width: 420px; padding: 10px 12px; border: 1px solid var(--rule-strong); background: #fff; font: 14px var(--sans); color: var(--ink); }
+  .tools input:focus { outline: 0; border-color: var(--accent); }
+  .tools span { color: var(--muted); font-size: 13px; }
+  .prog { display: flex; align-items: center; gap: 10px; white-space: nowrap; font: 500 12px var(--mono); color: var(--muted); }
+  .prog .bar { width: 72px; height: 4px; background: var(--rule); }
+  .prog .bar i { display: block; height: 100%; background: var(--good); }
+  .back { display: inline-block; margin-bottom: 16px; font-weight: 600; font-size: 13px; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--ink); }
+  .who-h { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .who-h h2 { margin: 0; font-size: 24px; letter-spacing: -0.025em; font-weight: 600; }
+  .who-mail { font: 500 12.5px var(--mono); color: var(--muted); margin-bottom: 22px; overflow-wrap: anywhere; }
+  dl.props { display: grid; grid-template-columns: 140px minmax(0, 1fr); margin: 0; }
+  .props dt, .props dd { padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
+  .props dt { color: var(--muted); }
+  .props dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+  .props dd.unknown { color: var(--faint); font-weight: 400; }
+  .fund { display: flex; align-items: baseline; gap: 8px; }
+  .fund b { font: 600 28px/1.1 var(--sans); letter-spacing: -0.035em; color: var(--bad); }
+  .fund span { color: var(--muted); }
+  .fbar { display: flex; height: 10px; background: var(--bad-soft); gap: 2px; margin: 12px 0 10px; }
+  .fbar i { display: block; height: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 9px; height: 9px; display: inline-block; }
+  .legend b { color: var(--ink); }
+  .checks { list-style: none; margin: 0; padding: 0; }
+  .checks li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
+  .checks li:last-child { border-bottom: 0; }
+  .checks .c { width: 13px; height: 13px; border: 1.5px solid var(--rule-strong); margin-top: 3px; position: relative; }
+  .checks .received .c { background: var(--good); border-color: var(--good); }
+  .checks .received .c::after { content: ""; position: absolute; left: 3px; top: 0; width: 4px; height: 7px; border-right: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(40deg); }
+  .checks .missing .c { border-color: var(--bad); }
+  .checks .if_parent .c { border-color: var(--warn); border-style: dashed; }
+  .checks .t { font-weight: 500; }
+  .checks .due { font: 500 11.5px var(--mono); color: var(--faint); }
+  .checks .w { font: 600 10.5px/1.9 var(--mono); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .w.received { color: var(--good); } .w.missing { color: var(--bad); } .w.if_parent { color: var(--warn); } .w.not_needed { color: var(--faint); }
+  .docs { list-style: none; margin: 0; padding: 0; }
+  .docs li { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .docs li:last-child { border-bottom: 0; }
+  .docs b { display: block; font: 600 12.5px var(--mono); }
+  .docs span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log li { display: grid; grid-template-columns: 70px 76px minmax(0, 1fr); gap: 10px; padding: 9px 18px; border-bottom: 1px dotted var(--rule); font-size: 13px; }
+  .log li:last-child { border-bottom: 0; }
+  .log .tm { font: 500 11.5px/1.9 var(--mono); color: var(--faint); }
+  .log .cd { font: 600 10.5px/1.9 var(--mono); letter-spacing: .08em; color: var(--muted); }
+  .log .cd.in { color: var(--admissions); } .log .cd.out { color: var(--good); } .log .cd.staff { color: var(--warn); } .log .cd.bad { color: var(--bad); } .log .cd.read { color: var(--intl); }
+  .log .tx { color: var(--ink2); overflow-wrap: anywhere; }
+  .log q { display: block; margin-top: 4px; padding: 5px 9px; border-left: 2px solid var(--bad); background: var(--bad-soft); color: var(--bad); font-size: 12.5px; quotes: none; }
+
+  .hero-empty { background: var(--panel); border: 1px solid var(--rule); padding: 40px 36px; display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+  .hero-empty h2 { margin: 0 0 6px; font-size: 22px; letter-spacing: -0.02em; font-weight: 600; }
+  .hero-empty p { margin: 0; color: var(--ink2); max-width: 560px; }
+  .note-line { margin-top: 14px; font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 1200px) {
+    .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kpi:nth-child(4) { border-left: 0; padding-left: 0; }
+    .kpi:nth-child(n+4) { border-top: 1px solid var(--rule); }
+    .cols { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 900px) {
+    body { grid-template-columns: minmax(0, 1fr); }
+    body { grid-template-rows: auto 1fr; }
+    .sb { position: static; height: auto; }
+    .me { margin-top: 0; }
+    .sb-brand { padding: 14px 16px; }
+    .nav { flex-direction: row; overflow-x: auto; padding: 6px 8px; }
+    .nav .grp { display: none; }
+    .nav a { white-space: nowrap; border-left: 0; border-bottom: 2px solid transparent; }
+    .nav a.on { border-bottom-color: #3ccf91; }
+    .me { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; }
+    .me .mail, .me .via { display: none; }
+    .me form { margin: 0; }
+    .topbar, .view { padding-left: 16px; padding-right: 16px; }
+    .t .hide-sm { display: none; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kpi:nth-child(n) { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); }
+    .kpi:nth-child(even) { border-left: 1px solid var(--rule); padding-left: 14px; }
+    .kpi:nth-child(-n+2) { border-top: 0; }
+    .rows li { grid-template-columns: minmax(0, 1fr) auto; }
+    .rows li > :first-child { grid-column: 1 / -1; }
+    .log li { grid-template-columns: 62px minmax(0, 1fr); }
+    .log .tx { grid-column: 2; }
+  }
+</style>
+</head>
+<body>
+<aside class="sb">
+  <a class="sb-brand" href="/"><img src="/logo.svg" alt=""><div><b>Unicess</b><span>Halden University</span></div></a>
+  <nav class="nav" id="nav">
+    <div class="grp">Workspace</div>
+    <a href="#overview" data-v="overview"><span>Overview</span></a>
+    <a href="#review" data-v="review"><span>Review queue</span><em id="n-review"></em></a>
+    <a href="#applicants" data-v="applicants"><span>Applicants</span><em id="n-applicants"></em></a>
+    <a href="#offices" data-v="offices"><span>Offices</span><em>6</em></a>
+    <a href="#safeguards" data-v="safeguards"><span>Safeguards</span><em id="n-safeguards"></em></a>
+    <div class="grp">Demo</div>
+    <a href="/live" target="_blank" rel="noopener"><span>Live flow</span><span class="ext" aria-hidden="true"></span></a>
+  </nav>
+  <div class="me" id="me">
+    <div><b id="me-name">Signed in</b><span class="mail" id="me-mail"></span><span class="via" id="me-via"></span></div>
+    <form method="post" action="/auth/logout"><button type="submit">Sign out</button></form>
+  </div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div><h1 id="title">Overview</h1><p id="subtitle"></p></div>
+    <div class="top-r"><span id="pills"></span><button class="b accent" id="run" type="button"><span class="tri" aria-hidden="true"></span>Run the demo</button></div>
+  </header>
+  <div class="view" id="view"></div>
+</div>
+
+<script>
+const OFFICE = { ask: "Front desk", admissions: "Admissions", intl: "International", finaid: "Financial aid", housing: "Housing", counselor: "Application counselor" };
+const ORDER = ["ask", "admissions", "intl", "finaid", "housing", "counselor"];
+const STATUS = { received: "Received", missing: "Missing", if_parent: "If parent's", not_needed: "Not needed" };
+const SHIELD = { forged_webhook: "FORGED", forged_approval: "FORGED", duplicate: "DUPLICATE", auto_reply: "AUTO-REPLY", spoofed: "SPOOFED", injection: "INJECTION", cap: "CAP" };
+const COST_OF_ATTENDANCE = 46400, SCHOLARSHIP_MAX = 8000;
+const VIEWS = {
+  overview: ["Overview", "What Unicess answered, and what is waiting for you."],
+  review: ["Review queue", "Agents send these to staff instead of guessing. Approve a draft, edit it, or answer the question; the reply goes out in the applicant's thread."],
+  applicants: ["Applicants", "One file per applicant, shared by every office."],
+  applicant: ["Applicant file", "Everything every office knows about this applicant."],
+  offices: ["Offices", "Six agent addresses. Each answers from its own knowledge file."],
+  safeguards: ["Safeguards", "Mail that was stopped before an agent acted on it."],
+};
+
+let events = [], cases = [], metrics = {}, health = {}, mode = "", busy = null, domain = null, since = 0, me = null, directory = {};
+let reviewTab = "waiting", search = "";
+const drafts = new Map(), editing = new Set(), pending = new Map();
+
+const $ = (id) => document.getElementById(id);
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k === "style") node.style.cssText = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const c of children.flat()) if (c != null && c !== false) node.append(c);
+  return node;
+}
+const color = (a) => `var(--${OFFICE[a] ? a : "ask"})`;
+const addr = (a) => el("span", { class: "addr", style: `--c:${color(a)}` }, el("i"), `${a}@`);
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const secs = (ms) => ((ms ?? 0) / 1000).toFixed(1);
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const shortLabel = (label) => String(label).split(" (")[0].split(":")[0];
+const isAgentSender = (x) => /agent|bot|assistant/i.test(x ?? "");
+const usd = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
+function ago(iso) {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  return m < 1 ? "just now" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+function nameOf(student) {
+  const c = cases.find((x) => x.student === student);
+  const n = c?.facts?.student_name;
+  if (isAgentSender(student)) return n ? `${String(n).split(" ")[0]}'s AI agent` : "AI agent";
+  return n ?? student?.split("@")[0] ?? "Unknown sender";
+}
+
+// ---------- Derived state ----------
+function queue() {
+  const resolved = new Map(events.filter((e) => e.type === "approval" && e.data?.ref).map((e) => [e.data.ref, e]));
+  const seen = new Set();
+  return events.filter((e) => e.type === "escalation" && e.data?.ref).filter((e) => !seen.has(e.data.ref) && seen.add(e.data.ref)).map((e) => ({
+    ref: e.data.ref, kind: e.data.kind ?? "approval", agent: e.agent, student: e.student, at: e.at,
+    request: e.data.request ?? e.text.replace(/^[^:]+:\s*/, ""), draft: e.data.draft ?? "",
+    demo: e.data.ref.startsWith("replay_"), done: resolved.get(e.data.ref) ?? null,
+  })).reverse();
+}
+function conversations() {
+  const list = [], open = new Map();
+  for (const e of events) {
+    if (!e.student) continue;
+    if (e.type === "inbound") { const g = { e, reply: null, staff: null, shield: null }; list.push(g); open.set(e.student, g); continue; }
+    const g = open.get(e.student);
+    if (!g) continue;
+    if (e.type === "reply" && !g.reply) g.reply = e;
+    else if (e.type === "escalation" && e.data?.ref) g.staff = e;
+    else if (e.type === "shield") g.shield = e;
+  }
+  return list.reverse();
+}
+function deadlines() {
+  return cases.flatMap((c) => (c.checklist ?? []).filter((i) => i.status === "missing" || i.status === "if_parent").map((i) => ({ ...i, student: c.student })))
+    .sort((a, b) => (Date.parse(a.deadline) || 0) - (Date.parse(b.deadline) || 0));
+}
+
+// ---------- Shell ----------
+function route() {
+  const [view, arg] = location.hash.slice(1).split("/");
+  return VIEWS[view] ? { view, arg: arg ? decodeURIComponent(arg) : null } : { view: "overview", arg: null };
+}
+function renderShell() {
+  const { view } = route();
+  const nav = view === "applicant" ? "applicants" : view;
+  for (const a of document.querySelectorAll("#nav a[data-v]")) a.classList.toggle("on", a.dataset.v === nav);
+  const waiting = queue().filter((q) => !q.done).length;
+  const n = $("n-review");
+  n.textContent = waiting || "";
+  n.className = waiting ? "hot" : "";
+  $("n-applicants").textContent = cases.length || "";
+  $("n-safeguards").textContent = events.filter((e) => e.type === "shield").length || "";
+  const [title, sub] = VIEWS[view];
+  $("title").textContent = title;
+  $("subtitle").textContent = sub;
+  const pills = [];
+  if (mode === "recorded") pills.push(el("span", { class: "pill rec" }, el("i"), "Recorded run"));
+  else {
+    pills.push(el("span", { class: `pill ${health.primitive === "ok" ? "" : "bad"}` }, el("i"), `Primitive ${health.primitive === "ok" ? "connected" : health.primitive ?? "checking"}`));
+    pills.push(el("span", { class: `pill ${health.model === "ok" ? "" : "bad"}` }, el("i"), `Model ${health.model === "ok" ? "ready" : health.model ?? "checking"}`));
+  }
+  $("pills").replaceChildren(...pills.flatMap((p, i) => (i ? [" ", p] : [p])));
+  $("pills").style.cssText = "display:inline-flex;gap:16px";
+  const run = $("run");
+  const playing = !!busy;
+  run.disabled = playing;
+  if (run.dataset.state !== String(playing)) {
+    run.dataset.state = String(playing);
+    run.replaceChildren(el("span", { class: "tri", "aria-hidden": "true" }), playing ? "Demo running…" : "Run the demo");
+  }
+}
+
+// ---------- Views ----------
+function viewOverview() {
+  const m = metrics, q = queue(), waiting = q.filter((x) => !x.done);
+  const out = [];
+  if (!events.some((e) => e.type === "inbound")) {
+    out.push(el("div", { class: "hero-empty" },
+      el("div", {}, el("h2", {}, "No applicant mail yet"),
+        el("p", {}, `Run the demo to load ten sample conversations in about 90 seconds, or email ${domain ? `ask@${domain}` : "any office address"} and watch it arrive here.`)),
+      el("button", { class: "b accent", type: "button", onclick: runDemo, disabled: busy ? "" : null }, el("span", { class: "tri" }), busy ? "Demo running…" : "Run the demo")));
+  }
+  const min = m.staffMinutesSaved ?? 0;
+  out.push(el("section", { class: "kpis" },
+    kpi("Emails answered", String(m.replies ?? 0), null, `${m.afterHours ?? 0} outside office hours`),
+    kpi("Median first reply", secs(m.medianReplyMs), "s", m.replies ? `Latest ${secs(m.lastReplyMs)} s` : "No replies yet", "good"),
+    kpi("Resolved by agents", m.replies ? `${Math.round((m.repliesWithoutHuman / m.replies) * 100)}` : "0", "%", m.replies ? `${m.repliesWithoutHuman} of ${m.replies} replies` : "No replies yet"),
+    kpi("Waiting on staff", String(waiting.length), null, waiting.length ? el("a", { href: "#review" }, "Open the review queue") : "Nothing waiting", waiting.length ? "hot" : ""),
+    kpi("Documents received", String(m.itemsCleared ?? 0), null, "Checklist items cleared"),
+    kpi("Staff time saved", min >= 60 ? (min / 60).toFixed(1) : String(min), min >= 60 ? "h" : "min", "At 12 min per reply")));
+
+  const needs = el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Needs review"), el("a", { href: "#review" }, "Review queue")),
+    waiting.length ? el("ul", { class: "rows" }, waiting.slice(0, 4).map((x) => el("li", {},
+      el("span", { class: `code ${x.kind}` }, x.kind === "gap" ? "ANSWER NEEDED" : "APPROVAL"),
+      el("div", { style: "min-width:0" }, el("div", { class: "main-t" }, nameOf(x.student), addr(x.agent)), el("div", { class: "desc" }, x.request)),
+      el("span", { class: "when" }, ago(x.at)))))
+      : el("div", { class: "empty" }, el("b", {}, "Nothing is waiting for you"), "Agents answered everything they could. Requests that need a person appear here."));
+  const dl = deadlines();
+  const soon = (d) => { const t = Date.parse(d); return t && t - Date.now() < 45 * 864e5; };
+  const due = el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Upcoming deadlines"), el("span", {}, dl.length ? `${dl.length} open items` : "")),
+    dl.length ? el("ul", { class: "rows" }, dl.slice(0, 6).map((i) => el("li", {},
+      el("span", { class: `date ${soon(i.deadline) ? "soon" : ""}` }, shortDate(i.deadline)),
+      el("div", { style: "min-width:0" }, el("div", { class: "main-t" }, shortLabel(i.label)), el("div", { class: "desc" }, nameOf(i.student))),
+      el("span", { class: `w ${i.status}`, style: "font:600 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase" }, STATUS[i.status]))))
+      : el("div", { class: "empty" }, el("b", {}, "No open checklist items"), "Missing documents and their due dates appear here."));
+  out.push(el("div", { class: "cols" }, needs, due));
+
+  const conv = conversations().slice(0, 8);
+  out.push(el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Recent conversations"), el("a", { href: "#applicants" }, "All applicants")),
+    conv.length ? el("table", { class: "t" },
+      el("thead", {}, el("tr", {}, el("th", {}, "Time"), el("th", {}, "Applicant"), el("th", { class: "hide-sm" }, "To"), el("th", { class: "hide-sm" }, "Subject"), el("th", {}, "Outcome"))),
+      el("tbody", {}, conv.map((g) => el("tr", { class: "click", onclick: () => openApplicant(g.e.student) },
+        el("td", { class: "tm" }, clock(g.e.at)),
+        el("td", {}, nameOf(g.e.student), el("span", { class: "sub" }, g.e.student)),
+        el("td", { class: "hide-sm" }, addr(g.e.agent ?? "ask")),
+        el("td", { class: "hide-sm" }, g.e.data?.subject ?? "(no subject)"),
+        el("td", {}, outcome(g))))))
+      : el("div", { class: "empty" }, "Conversations appear here as mail arrives.")));
+  return out;
+}
+function kpi(k, v, unit, s, tone = "") {
+  return el("div", { class: `kpi ${tone}` }, el("div", { class: "k" }, k), el("div", { class: "v num" }, v, unit ? el("small", {}, unit) : null), el("div", { class: "s" }, s));
+}
+function outcome(g) {
+  const waiting = g.staff && !events.some((e) => e.type === "approval" && e.data?.ref === g.staff.data.ref);
+  if (waiting) return el("span", { class: "out warn" }, "With staff");
+  if (g.reply) return el("span", { class: "out good" }, `Replied in ${secs(g.reply.data?.ms)} s`);
+  if (g.shield) return el("span", { class: "out bad" }, "Blocked");
+  return el("span", { class: "out now" }, "Answering…");
+}
+function shortDate(d) { const t = Date.parse(d); return t ? new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : d; }
+
+function viewReview() {
+  const all = queue();
+  const waiting = all.filter((x) => !x.done), done = all.filter((x) => x.done);
+  const list = reviewTab === "waiting" ? waiting : done;
+  const seg = el("div", { class: "seg" },
+    el("button", { type: "button", class: reviewTab === "waiting" ? "on" : "", onclick: () => { reviewTab = "waiting"; render(); } }, "Waiting", el("em", {}, String(waiting.length))),
+    el("button", { type: "button", class: reviewTab === "done" ? "on" : "", onclick: () => { reviewTab = "done"; render(); } }, "Resolved", el("em", {}, String(done.length))));
+  if (!list.length) {
+    return [seg, el("div", { class: "panel" }, el("div", { class: "empty" },
+      el("b", {}, reviewTab === "waiting" ? "Nothing is waiting for review" : "Nothing resolved yet"),
+      reviewTab === "waiting" ? "When an agent needs a decision or does not know an answer, the request appears here instead of a guess reaching the applicant." : "Approved and answered requests are listed here with what was sent."))];
+  }
+  return [seg, ...list.map(reviewItem)];
+}
+function reviewItem(x) {
+  const locked = me?.method === "demo" && !x.demo;
+  const head = el("div", { class: "item-h" },
+    el("span", { class: `code ${x.done ? "done" : x.kind}` }, x.done ? (x.done.data?.status === "approved" ? "APPROVED" : "ANSWERED") : x.kind === "gap" ? "ANSWER NEEDED" : "APPROVAL"),
+    el("span", { class: "who" }, nameOf(x.student)), el("span", { class: "sub" }, x.student), addr(x.agent),
+    el("span", { class: "age" }, x.done ? `Resolved ${clock(x.done.at)}` : `Waiting ${ago(x.at)}`));
+  const body = el("div", { class: "item-b" }, el("div", { class: "lbl" }, "Request"), el("p", { class: "req" }, x.request));
+  if (x.done) {
+    const by = x.done.data?.staff ?? "staff";
+    body.append(el("div", { class: "resolved-line" }, el("b", {}, x.done.data?.status === "approved" ? "Approved" : "Answered"), `by ${by}${x.done.data?.via === "portal" ? " in the portal" : " by email"}, at ${clock(x.done.at)}.`),
+      el("details", { class: "sent" }, el("summary", {}, "What the applicant received"), el("pre", {}, x.done.data?.text ?? "")));
+    return el("article", { class: "item", style: `--c:var(--good)` }, head, body);
+  }
+  const p = pending.get(x.ref);
+  const note = p ? el("span", { class: `note ${p.error ? "err" : ""}` }, p.error ?? "Sending…") : null;
+  const busyNow = !!p && !p.error;
+  if (x.kind === "approval") {
+    if (editing.has(x.ref)) {
+      body.append(el("div", { class: "lbl" }, `Your version, sent from ${x.agent}@`),
+        textarea(x.ref, x.draft),
+        el("p", { class: "help" }, "The applicant receives exactly this text, signed by the office."),
+        el("div", { class: "acts" },
+          el("button", { class: "b ink", type: "button", disabled: locked || busyNow ? "" : null, onclick: () => resolve(x, "send") }, "Send edited answer"),
+          el("button", { class: "b", type: "button", onclick: () => { editing.delete(x.ref); render(); } }, "Cancel"), note));
+    } else {
+      body.append(el("div", { class: "lbl" }, `Draft from ${x.agent}@`), el("div", { class: "draft" }, x.draft || "(no draft)"),
+        el("div", { class: "acts" },
+          el("button", { class: "b ink", type: "button", disabled: locked || busyNow ? "" : null, onclick: () => resolve(x, "approve") }, "Approve and send"),
+          el("button", { class: "b", type: "button", disabled: locked ? "" : null, onclick: () => { editing.add(x.ref); render(); } }, "Edit before sending"), note));
+    }
+  } else {
+    body.append(el("div", { class: "lbl" }, "Your answer"), textarea(x.ref, "", "Write the answer the applicant should receive."),
+      el("p", { class: "help" }, `${x.agent}@ saves this answer to its knowledge, so the next applicant who asks is answered with no staff.`),
+      el("div", { class: "acts" }, el("button", { class: "b ink", type: "button", disabled: locked || busyNow ? "" : null, onclick: () => resolve(x, "send") }, `Send and teach ${x.agent}@`), note));
+  }
+  if (locked) body.append(el("div", { class: "lock", style: "margin-top:14px" }, "This is real applicant mail. Sign in with Google as an approved staff member to act on it."));
+  return el("article", { class: "item", style: `--c:${x.kind === "gap" ? "var(--counselor)" : "var(--warn)"}` }, head, body);
+}
+function textarea(ref, initial, placeholder) {
+  if (!drafts.has(ref)) drafts.set(ref, initial);
+  return el("textarea", { "data-key": `ta-${ref}`, placeholder, oninput: (e) => drafts.set(ref, e.target.value) }, drafts.get(ref));
+}
+async function resolve(x, action) {
+  pending.set(x.ref, {});
+  render();
+  try {
+    const res = await fetch("/api/portal/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ref: x.ref, action, text: drafts.get(x.ref) ?? "" }) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+    pending.delete(x.ref); editing.delete(x.ref); drafts.delete(x.ref);
+    await poll();
+  } catch (err) {
+    pending.set(x.ref, { error: err.message });
+    render();
+  }
+}
+
+function viewApplicants() {
+  const q = search.trim().toLowerCase();
+  const rows = [...cases].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .filter((c) => !q || [c.student, c.facts?.student_name, c.facts?.country].some((v) => String(v ?? "").toLowerCase().includes(q)));
+  const input = el("input", { type: "search", placeholder: "Search by name, email or country", value: search, "data-key": "search", oninput: (e) => { search = e.target.value; render(); } });
+  const tools = el("div", { class: "tools" }, input, el("span", {}, plural(rows.length, "applicant")));
+  if (!cases.length) return [tools, el("div", { class: "panel" }, el("div", { class: "empty" }, el("b", {}, "No applicants yet"), "A file opens with each applicant's first email."))];
+  return [tools, el("div", { class: "panel" }, el("table", { class: "t" },
+    el("thead", {}, el("tr", {}, el("th", {}, "Applicant"), el("th", { class: "hide-sm" }, "Country"), el("th", { class: "hide-sm" }, "Term"), el("th", { class: "hide-sm" }, "Stage"), el("th", {}, "Checklist"), el("th", { class: "hide-sm" }, "Next deadline"), el("th", { class: "hide-sm" }, "Updated"))),
+    el("tbody", {}, rows.map((c) => {
+      const items = (c.checklist ?? []).filter((i) => i.status !== "not_needed");
+      const got = items.filter((i) => i.status === "received").length;
+      const next = items.filter((i) => i.status !== "received").sort((a, b) => (Date.parse(a.deadline) || 0) - (Date.parse(b.deadline) || 0))[0];
+      return el("tr", { class: "click", onclick: () => openApplicant(c.student) },
+        el("td", {}, el("b", {}, nameOf(c.student)), isAgentSender(c.student) ? el("span", { class: "chip accent", style: "margin-left:8px" }, "AI agent") : null, el("span", { class: "sub" }, c.student)),
+        el("td", { class: "hide-sm" }, c.facts?.country ?? el("span", { style: "color:var(--faint)" }, "Not on file")),
+        el("td", { class: "hide-sm" }, c.facts?.term ?? ""),
+        el("td", { class: "hide-sm" }, c.facts?.stage ? String(c.facts.stage)[0].toUpperCase() + String(c.facts.stage).slice(1) : ""),
+        el("td", {}, items.length ? el("span", { class: "prog" }, el("span", { class: "bar" }, el("i", { style: `width:${(got / items.length) * 100}%` })), `${got} of ${items.length}`) : el("span", { class: "prog" }, "No list yet")),
+        el("td", { class: "hide-sm" }, next ? [el("div", {}, shortLabel(next.label)), el("span", { class: "sub" }, shortDate(next.deadline))] : el("span", { style: "color:var(--faint)" }, "None")),
+        el("td", { class: "hide-sm tm" }, clock(c.updatedAt)));
+    }))))];
+}
+function openApplicant(student) { location.hash = `#applicant/${encodeURIComponent(student)}`; }
+
+function viewApplicant(student) {
+  const c = cases.find((x) => x.student === student);
+  const back = el("a", { class: "back", href: "#applicants" }, "All applicants");
+  if (!c) return [back, el("div", { class: "panel" }, el("div", { class: "empty" }, "This applicant's file is not loaded."))];
+  const f = c.facts ?? {};
+  const props = [["Country", f.country], ["Start term", f.term], ["Stage", f.stage && String(f.stage)[0].toUpperCase() + String(f.stage).slice(1)], ["English test", f.english_test], ["Account holder", f.funds_account_holder_name ?? f.account_holder], ["Emails on file", String(c.emails?.length ?? 0)], ["File opened", c.createdAt ? `${shortDate(c.createdAt)}, ${clock(c.createdAt)}` : null]];
+  const left = [el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Profile")), el("div", { class: "pb" },
+    el("dl", { class: "props" }, props.flatMap(([k, v]) => [el("dt", {}, k), el("dd", { class: v ? "" : "unknown" }, v ? String(v) : "Not on file")]))))];
+  if (typeof f.funds_shown_usd === "number") {
+    const funds = f.funds_shown_usd, short = Math.max(0, COST_OF_ATTENDANCE - funds), schol = Math.min(SCHOLARSHIP_MAX, short);
+    const pct = (n) => `${Math.min(100, (n / COST_OF_ATTENDANCE) * 100)}%`;
+    left.push(el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "I-20 funding"), el("span", {}, `${usd(COST_OF_ATTENDANCE)} needed a year`)), el("div", { class: "pb" },
+      short > 0 ? el("div", { class: "fund num" }, el("b", {}, usd(short)), el("span", {}, "short")) : el("div", { class: "fund num" }, el("b", { style: "color:var(--good)" }, "Fully funded")),
+      el("div", { class: "fbar" }, el("i", { style: `width:${pct(funds)};background:var(--good)` }), el("i", { style: `width:${pct(schol)};background:repeating-linear-gradient(135deg,var(--finaid) 0 4px,transparent 4px 8px)` })),
+      el("div", { class: "legend num" }, el("span", {}, el("i", { style: "background:var(--good)" }), el("b", {}, usd(funds)), "shown"),
+        schol > 0 ? el("span", {}, el("i", { style: "background:var(--finaid)" }), "up to ", el("b", {}, usd(schol)), "scholarship") : null))));
+  }
+  const items = c.checklist ?? [];
+  if (items.length) left.push(el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Checklist"), el("span", {}, `${items.filter((i) => i.status === "received").length} of ${items.filter((i) => i.status !== "not_needed").length} received`)),
+    el("div", { class: "pb", style: "padding-top:4px;padding-bottom:4px" }, el("ul", { class: "checks" }, items.map((i) => el("li", { class: i.status },
+      el("span", { class: "c" }), el("div", { style: "min-width:0" }, el("div", { class: "t" }, shortLabel(i.label)), el("div", { class: "due" }, `Due ${i.deadline}`)),
+      el("span", { class: `w ${i.status}` }, STATUS[i.status] ?? i.status)))))));
+  const right = [];
+  const docs = c.documents ?? [];
+  right.push(el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Documents"), el("span", {}, String(docs.length))),
+    docs.length ? el("div", { class: "pb", style: "padding-top:4px;padding-bottom:4px" }, el("ul", { class: "docs" }, docs.map((d) => el("li", {}, el("b", {}, d.filename), el("span", {}, d.summary)))))
+      : el("div", { class: "empty" }, "No documents received yet.")));
+  const log = events.filter((e) => e.student === student && LOG[e.type]).slice(-40).reverse();
+  right.push(el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Timeline"), el("span", {}, plural(log.length, "event"))),
+    log.length ? el("ul", { class: "log" }, log.map((e) => { const [code, cls, text, extra] = LOG[e.type](e); return el("li", {}, el("span", { class: "tm" }, clock(e.at)), el("span", { class: `cd ${cls}` }, code), el("div", { class: "tx" }, text, extra ?? null)); }))
+      : el("div", { class: "empty" }, "No activity yet.")));
+  return [back,
+    el("div", { class: "who-h" }, el("h2", {}, nameOf(student)), isAgentSender(student) ? el("span", { class: "chip accent" }, "AI agent") : null, c.waitingOn ? el("span", { class: "chip" }, `Waiting on the applicant for ${c.waitingOn.agent}@`) : null),
+    el("div", { class: "who-mail" }, student),
+    el("div", { class: "cols" }, el("div", {}, left), el("div", {}, right))];
+}
+const LOG = {
+  inbound: (e) => ["IN", "in", `“${e.data?.subject ?? "(no subject)"}” to ${e.agent ?? "ask"}@`],
+  reply: (e) => ["REPLY", "out", `${e.agent}@ replied in ${secs(e.data?.ms)} s`],
+  followup: (e) => ["REPLY", "out", `Late answer from ${e.agent}@, sent as a follow-up`],
+  counselor: () => ["EMAIL", "out", "counselor@ sent the list of missing items"],
+  reminder: () => ["DUE", "staff", "counselor@ sent a deadline reminder, unprompted"],
+  document: (e) => ["READ", "read", `Read ${e.data?.filename ?? "an attachment"}`],
+  escalation: (e) => ["STAFF", "staff", e.data?.kind === "gap" ? `${e.agent}@ asked staff for an answer it did not have` : `${e.agent}@ sent a draft for staff approval`],
+  approval: (e) => ["SENT", "out", `Staff ${e.data?.status === "approved" ? "approved" : "answered"}; ${e.agent}@ replied`],
+  ask_back: (e) => ["PAUSED", "staff", `${e.agent}@ asked the applicant: “${e.data?.question ?? ""}”`],
+  resume: (e) => ["RESUMED", "in", `The applicant answered ${e.agent}@`],
+  learned: (e) => ["LEARNED", "out", `${e.agent}@ saved a new answer from staff`],
+  shield: (e) => ["BLOCKED", "bad", e.text, e.data?.kind === "injection" ? el("q", {}, `“${String(e.data.detail).slice(0, 160)}…”`) : null],
+};
+
+function viewOffices() {
+  const count = (fn) => events.filter(fn).length;
+  return [el("div", { class: "panel" }, el("table", { class: "t" },
+    el("thead", {}, el("tr", {}, el("th", {}, "Address"), el("th", {}, "Office"), el("th", { class: "hide-sm" }, "Handles"), el("th", {}, "Activity"), el("th", { class: "hide-sm" }, "To staff"), el("th", { class: "hide-sm" }, "Learned"))),
+    el("tbody", {}, ORDER.map((a) => {
+      const activity = a === "ask" ? `${count((e) => e.type === "route")} routed` : plural(count((e) => e.agent === a && ["post", "counselor", "reminder", "followup"].includes(e.type) && e.data?.status !== "missed"), "answer");
+      return el("tr", {},
+        el("td", {}, addr(a), domain ? el("span", { class: "sub" }, `${a}@${domain}`) : null),
+        el("td", {}, el("b", {}, OFFICE[a])),
+        el("td", { class: "hide-sm", style: "color:var(--ink2);max-width:420px" }, directory[a] ?? ""),
+        el("td", { class: "tm" }, activity),
+        el("td", { class: "hide-sm tm" }, String(count((e) => e.type === "escalation" && e.agent === a && e.data?.ref))),
+        el("td", { class: "hide-sm tm" }, String(count((e) => e.type === "learned" && e.agent === a))));
+    })))),
+    el("p", { class: "note-line" }, "Each office answers from its own knowledge file. When staff answer a question an office could not, the answer is saved to that office's knowledge in Primitive Memories.")];
+}
+
+function viewSafeguards() {
+  const list = events.filter((e) => e.type === "shield").reverse();
+  const by = (...k) => list.filter((e) => k.includes(e.data?.kind)).length;
+  const out = [el("section", { class: "kpis" },
+    kpi("Forged", String(by("forged_webhook", "forged_approval")), null, "Bad signature or sender"),
+    kpi("Duplicates", String(by("duplicate")), null, "Retried deliveries"),
+    kpi("Auto-replies", String(by("auto_reply")), null, "Never answered"),
+    kpi("Spoofed senders", String(by("spoofed")), null, "Failed authentication"),
+    kpi("Prompt injections", String(by("injection")), null, "Quoted, not obeyed"),
+    kpi("Volume cap", String(by("cap")), null, "Loop guard per file"))];
+  out.push(el("div", { class: "panel" }, el("div", { class: "ph" }, el("h2", {}, "Blocked"), el("span", {}, plural(list.length, "event"))),
+    list.length ? el("table", { class: "t" },
+      el("thead", {}, el("tr", {}, el("th", {}, "Time"), el("th", {}, "Type"), el("th", {}, "What happened"))),
+      el("tbody", {}, list.map((e) => el("tr", {},
+        el("td", { class: "tm" }, clock(e.at)),
+        el("td", {}, el("span", { class: "code bad" }, SHIELD[e.data?.kind] ?? "BLOCKED")),
+        el("td", {}, e.text, e.student ? el("span", { class: "sub" }, e.student) : null,
+          e.data?.kind === "injection" ? el("q", { style: "display:block;margin-top:6px;padding:6px 10px;border-left:2px solid var(--bad);background:var(--bad-soft);color:var(--bad);font-size:12.5px;quotes:none" }, `Hidden in the PDF: “${String(e.data.detail).slice(0, 200)}…”`) : null)))))
+      : el("div", { class: "empty" }, el("b", {}, "Nothing blocked yet"), "The demo's Safeguards scenarios send a forged webhook, a duplicate, an auto-reply, a spoofed sender and a prompt injection.")));
+  return out;
+}
+
+// ---------- Render, keeping focus and typing intact across live updates ----------
+function render() {
+  renderShell();
+  const active = document.activeElement?.dataset?.key;
+  const caret = active ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+  const { view, arg } = route();
+  const nodes = view === "review" ? viewReview() : view === "applicants" ? viewApplicants() : view === "applicant" ? viewApplicant(arg)
+    : view === "offices" ? viewOffices() : view === "safeguards" ? viewSafeguards() : viewOverview();
+  const banner = mode === "recorded" ? el("div", { class: "banner" }, "Recorded mode. The demo replays an earlier live run; review actions are disabled for recorded mail.") : null;
+  $("view").replaceChildren(...[banner, ...nodes].filter(Boolean));
+  if (active) {
+    const next = document.querySelector(`[data-key="${CSS.escape(active)}"]`);
+    if (next) { next.focus(); try { next.setSelectionRange(...caret); } catch {} }
+  }
+}
+
+async function poll() {
+  try {
+    const res = await fetch(`/api/state?since=${since}`, { cache: "no-store" });
+    if (res.status === 401) { location.href = "/login"; return; }
+    const s = await res.json();
+    if (s.lastId < since) { events = []; since = 0; return poll(); }
+    const changed = s.events.length > 0 || s.busy !== busy || s.mode !== mode || JSON.stringify(s.health) !== JSON.stringify(health);
+    events.push(...s.events);
+    since = s.lastId; cases = s.cases; metrics = s.metrics; health = s.health ?? {}; mode = s.mode; busy = s.busy; domain = s.domain ?? domain;
+    // Don't redraw under someone mid-sentence unless something they are looking at changed.
+    if (changed) render(); else renderShell();
+  } catch {}
+}
+async function runDemo() {
+  $("run").disabled = true;
+  const res = await fetch("/api/play", { method: "POST" }).catch(() => null);
+  if (res && !res.ok) { const out = await res.json().catch(() => ({})); alert(out.error ?? `Could not start the demo (HTTP ${res.status})`); }
+  poll();
+}
+$("run").onclick = runDemo;
+window.addEventListener("hashchange", () => { window.scrollTo(0, 0); render(); });
+
+(async () => {
+  const [who, dir] = await Promise.all([
+    fetch("/api/me").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch("/.well-known/agent.json").then((r) => r.json()).catch(() => ({ agents: [] })),
+  ]);
+  if (!who) { location.href = "/login"; return; }
+  me = who;
+  for (const a of dir.agents ?? []) directory[a.address.split("@")[0]] = a.answers;
+  $("me-name").textContent = me.name;
+  $("me-mail").textContent = me.method === "google" ? me.email : "Sample data only";
+  $("me-via").textContent = me.method === "google" ? "GOOGLE" : "DEMO ACCESS";
+  $("me-via").className = `via ${me.method === "demo" ? "demo" : ""}`;
+  render();
+  await poll();
+  setInterval(poll, 2000);
+  setInterval(() => { if (!document.activeElement?.dataset?.key) renderShell(); }, 30000);
+})();
+</script>
+</body>
+</html>

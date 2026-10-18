@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Campus Desk">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Unicess">
   <!-- An inbox tray: one desk, every office's mail. Flat, two colors. -->
   <rect width="64" height="64" rx="6" fill="#0b6e4f"/>
   <path d="M13 20h38v26H13z" fill="none" stroke="#f4f2ec" stroke-width="4"/>

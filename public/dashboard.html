@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Campus Desk · Halden University</title>
+<title>Unicess · Halden University</title>
 <link rel="icon" type="image/svg+xml" href="/logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,6 +49,9 @@
   .uni { font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-left: 10px; font-style: normal; }
   .brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
   .pills { display: flex; gap: 18px; flex-wrap: wrap; }
+  .top-r { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .toplink { font: 600 12.5px/1 var(--sans); color: var(--ink); text-decoration: none; padding: 8px 12px; border: 1px solid var(--rule-strong); }
+  .toplink:hover { border-color: var(--ink); }
   .pill { display: inline-flex; align-items: center; gap: 8px; font: 500 11.5px/1 var(--mono); letter-spacing: .04em; color: var(--ink2); }
   .pill .d { width: 7px; height: 7px; background: var(--good); }
   .pill.live .d { animation: blink 2s steps(1) infinite; }
@@ -352,9 +355,9 @@
     <header class="top">
       <div class="brand">
         <img class="logo" src="/logo.svg" alt="">
-        <div><h1>Campus Desk <em class="uni">Halden University</em></h1><p>Six office inboxes, one shared applicant file. Built on Primitive.</p></div>
+        <div><h1>Unicess <em class="uni">Halden University</em></h1><p>Six office inboxes, one shared applicant file. Built on Primitive.</p></div>
       </div>
-      <div class="pills" id="pills"><span class="pill"><span class="d"></span>Connecting</span></div>
+      <div class="top-r"><div class="pills" id="pills"><span class="pill"><span class="d"></span>Connecting</span></div><a class="toplink" href="/portal">Staff portal</a></div>
     </header>
     <div class="banner" id="banner" hidden></div>
 

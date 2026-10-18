@@ -58,7 +58,7 @@ export async function buildStructuredReply(input: {
   }
 
   return {
-    format: "campus-desk/v1",
+    format: "unicess/v1",
     school: "Halden University (fictional)",
     student: caseFile.student,
     next_step: nextStep.replace(/^Next step:\s*/, ""),
@@ -77,5 +77,5 @@ export async function buildStructuredReply(input: {
 }
 
 export function structuredBlock(json: unknown): string {
-  return ["Structured reply for software agents (also attached as campus-desk-reply.json):", "```json", JSON.stringify(json, null, 2), "```"].join("\n");
+  return ["Structured reply for software agents (also attached as unicess-reply.json):", "```json", JSON.stringify(json, null, 2), "```"].join("\n");
 }

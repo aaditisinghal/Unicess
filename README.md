@@ -1,6 +1,6 @@
-<p align="center"><img src="public/logo.svg" width="88" alt="Campus Desk logo"></p>
+<p align="center"><img src="public/logo.svg" width="88" alt="Unicess logo"></p>
 
-<h1 align="center">Campus Desk</h1>
+<h1 align="center">Unicess</h1>
 
 <p align="center"><b>Every university inbox is a queue. We turn it into a team of agents with their own addresses that answer students, and their AI agents, in seconds.</b></p>
 
@@ -8,7 +8,7 @@
 
 ---
 
-Campus Desk gives a university a team of email agents, each with its own address on [Primitive](https://primitive.dev). A student writes once, from anywhere, at any hour. Every office the question touches answers in parallel, and the student gets **one complete, signed reply in about six seconds**, instead of three partial replies weeks later. A student's AI assistant can do the same thing and get a JSON block it can act on.
+Unicess gives a university a team of email agents, each with its own address on [Primitive](https://primitive.dev). A student writes once, from anywhere, at any hour. Every office the question touches answers in parallel, and the student gets **one complete, signed reply in about six seconds**, instead of three partial replies weeks later. A student's AI assistant can do the same thing and get a JSON block it can act on.
 
 The demo school, Halden University, is fictional. Every figure, name and document is synthetic.
 
@@ -28,7 +28,7 @@ The demo school, Halden University, is fictional. Every figure, name and documen
 2. [The problem](#the-problem)
 3. [What we built](#what-we-built)
 4. [The demo: ten scenarios](#the-demo-ten-scenarios)
-5. [The dashboard](#the-dashboard)
+5. [The dashboard](#the-dashboard) and [the staff portal](#the-staff-portal)
 6. [Architecture](#architecture)
 7. [How it uses Primitive](#how-it-uses-primitive)
 8. [Agent to agent](#agent-to-agent)
@@ -55,9 +55,9 @@ npm install
 npm start
 ```
 
-The dashboard opens in your browser by itself (or open the `Dashboard:` link printed in the terminal). Then:
+The landing page opens in your browser by itself (http://localhost:3000). Press **Start**, then **Continue with demo access** at the bottom of the sign-in page to open the [staff portal](#the-staff-portal). Or go straight to the live dashboard with the `Live dashboard:` link printed in the terminal. Then:
 
-- press **Run the full demo** to run all ten scenarios in about 90 seconds, or
+- press **Run the full demo** (or **Run the demo** in the portal) to run all ten scenarios in about 90 seconds, or
 - click any single scenario, or
 - type your own question into **Send a test question** and pick which address it goes to.
 
@@ -176,7 +176,17 @@ Features at a glance:
 - **Safeguards:** every attack stopped, with the injected text quoted.
 - **Show Primitive calls:** a toggle that prints the exact Primitive operation behind every step.
 
-The dashboard needs the token in the link (`?token=...`) because it shows student files.
+The dashboard lives at `/live` and needs the token in the link (`?token=...`) or a portal sign-in, because it shows student files.
+
+## The staff portal
+
+The university-facing side of Unicess, at `/portal`. The public landing page (`/`) leads to it through **Start** and the sign-in page (`/login`).
+
+- **Sign-in:** Continue with Google (OAuth, once `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; only addresses in `PORTAL_ALLOWED`, or `STAFF_ADDRESSES` when that is empty, get in). Near the bottom, **Continue with demo access** skips Google for judges; `PORTAL_DEMO_ACCESS=0` removes it. Sessions are signed cookies.
+- **Overview:** emails answered, median first reply, share resolved by agents, what is waiting on staff, upcoming checklist deadlines and recent conversations.
+- **Review queue:** every escalation in one place. Approve an agent's draft, edit it before sending, or answer a question an office could not (the office learns that answer). It uses the same code path as a staff email reply. Demo access can act on demo mail only; real applicant mail needs a Google sign-in.
+- **Applicants:** searchable list, then each applicant's profile, I-20 funding gap, checklist, documents and timeline.
+- **Offices** and **Safeguards:** each address with its activity, and every blocked message with the evidence.
 
 ---
 
@@ -261,11 +271,11 @@ Priya's AI agent (an outside agent at its own address) completes her application
 4. Our paused task resumes, the checklist updates, and a new JSON reply comes back.
 5. It hands back to Priya only what an agent can't do for her: the official transcript and the signed sponsor letter.
 
-**Structured replies.** Any email containing "Reply format: structured" (or "reply in JSON") gets, after the normal reply, a JSON block and a `campus-desk-reply.json` attachment:
+**Structured replies.** Any email containing "Reply format: structured" (or "reply in JSON") gets, after the normal reply, a JSON block and a `unicess-reply.json` attachment:
 
 ```json
 {
-  "format": "campus-desk/v1",
+  "format": "unicess/v1",
   "next_step": "Submit your official transcript by January 15, 2027.",
   "deadlines": [{ "item": "English test score", "date": "2027-01-15", "office": "intl@…" }],
   "requirements": [{ "item": "Funding proof", "detail": "Bank statement under 6 months old", "office": "intl@…" }],
@@ -397,9 +407,14 @@ All settings are environment variables (see `.env.example`):
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_APPLICATION_CREDENTIALS`, `VERTEX_MODEL`, `VERTEX_FAST_MODEL`, `GEMINI_PREFER` | Optional Vertex AI fallback |
 | `STAFF_ADDRESSES` | Human counselors who approve escalations (first one is emailed) |
 | `DASHBOARD_TOKEN` | Dashboard link token; random per start if empty |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in for the staff portal (redirect URI: `<your URL>/auth/google/callback`) |
+| `PORTAL_ALLOWED` | Who may sign in with Google: emails, or `@domain` for a whole domain; defaults to `STAFF_ADDRESSES` |
+| `PORTAL_DEMO_ACCESS` | `0` removes the demo-access bypass from the sign-in page |
+| `SESSION_SECRET` | Signs portal sessions; without it, sessions end when the server restarts |
+| `PUBLIC_URL` | The public address behind a tunnel or proxy, used for the Google redirect URI |
 | `DRY_RUN` | `1` logs replies instead of sending |
 | `DEMO_MODE` | `recorded` forces recorded mode |
-| `OPEN_BROWSER` | `0` stops `npm start` from opening the dashboard |
+| `OPEN_BROWSER` | `0` stops `npm start` from opening the landing page |
 | `SECTION_CUT_MS` | Merge cut, default 30000 |
 | `PORT` | Default 3000 |
 
@@ -409,7 +424,8 @@ All settings are environment variables (see `.env.example`):
 
 ```
 src/
-  server.ts          Hono app: webhook, dashboard, scenario API, health check, llms.txt
+  server.ts          Hono app: webhook, pages, sign-in, portal and scenario APIs, health check, llms.txt
+  auth.ts            Portal sessions, Google OAuth and demo access
   inbound.ts         Every email: dedupe, guards, case file, routing, handoffs, reply, follow-ups
   router.ts          ask@: split an email into department questions
   agents.ts          One runner for every office: role + knowledge + case file
@@ -432,7 +448,10 @@ src/
   cases.ts           Case file, tasks, email cap
   knowledge/*.md     Each office's knowledge file
 public/
-  dashboard.html     The dashboard (single file, no build step)
+  landing.html       Public landing page (/)
+  login.html         Staff sign-in: Google, plus demo access (/login)
+  portal.html        University staff portal (/portal)
+  dashboard.html     The live demo dashboard (/live); every page is one file, no build step
   logo.svg           Logo and favicon
 scripts/             demo, replay, reset, whoami, make-fixtures
 fixtures/            Synthetic PDFs, webhook template, recorded run
@@ -446,7 +465,8 @@ docs/                Write-up PDF and screenshots
 
 | Symptom | Fix |
 | --- | --- |
-| Dashboard says "Bad token" | Open the `Dashboard:` link printed by `npm start` (it includes `?token=`) |
+| Dashboard says "Invalid token" | Open the `Live dashboard:` link printed by `npm start` (it includes `?token=`), or sign in to the portal first |
+| "Google sign-in is not set up" | Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or use demo access |
 | Header shows "Recorded run" | The Primitive or model key failed the startup check; the server log line `[health]` says which |
 | A reply is slow or one office says "following up" | The model was rate-limited; its answer arrives as a follow-up. An `ANTHROPIC_API_KEY` avoids Gemini's free-tier limits |
 | `npm start` fails with a missing variable | Copy `.env.example` to `.env` and fill it in |

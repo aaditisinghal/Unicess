@@ -5,7 +5,9 @@ import { serve } from "@hono/node-server";
 import { type Context, Hono } from "hono";
 import primitive, { PrimitiveWebhookError, WebhookVerificationError } from "@primitivedotdev/sdk";
 import { PrimitiveApiClient, getAccount } from "@primitivedotdev/sdk/api";
+import { demoAccessEnabled, endSession, getSession, googleCallback, googleConfigured, googleRedirect, startSession } from "./auth";
 import { env } from "./env";
+import { isDemoEscalation, resolveEscalation } from "./escalation";
 import { emit, getDomain, setDomain, snapshot } from "./events";
 import { handleInbound } from "./inbound";
 import { generateText, modelName, provider } from "./llm";
@@ -55,14 +57,17 @@ app.post("/webhooks/email", async (c) => {
   return c.json({ ok: true });
 });
 
-// The dashboard shows student files and the server is public through the tunnel, so it needs a token.
+// The dashboard shows student files and the server is public through the tunnel, so it needs the
+// token link or a signed-in portal session.
 const dashboardToken = env.dashboardToken ?? randomBytes(12).toString("base64url");
 
-function authorized(c: Context): boolean {
+function hasToken(c: Context): boolean {
   const given = Buffer.from(c.req.query("token") ?? c.req.header("x-dashboard-token") ?? "");
   const expected = Buffer.from(dashboardToken);
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
+const authorized = (c: Context) => hasToken(c) || getSession(c) !== null;
+const page = (name: string) => readFileSync(new URL(`../public/${name}`, import.meta.url), "utf8");
 
 // Live when Primitive and the model both answer at startup; otherwise the dashboard plays the recording.
 type Health = { primitive: "checking" | "ok" | "failed"; model: "checking" | "ok" | "failed"; detail?: string };
@@ -75,11 +80,56 @@ const mode = () =>
       ? "starting"
       : "live";
 
-app.get("/", (c) =>
-  authorized(c)
-    ? c.html(readFileSync(new URL("../public/dashboard.html", import.meta.url), "utf8"))
-    : c.text("Open the dashboard with the ?token=... link printed in the server log.", 401),
-);
+// Public landing page. Old dashboard links (/?token=...) still land on the live dashboard.
+app.get("/", (c) => (hasToken(c) ? c.redirect(`/live?token=${encodeURIComponent(c.req.query("token") ?? "")}`) : c.html(page("landing.html"))));
+app.get("/live", (c) => (authorized(c) ? c.html(page("dashboard.html")) : c.redirect("/login")));
+app.get("/login", (c) => (getSession(c) ? c.redirect("/portal") : c.html(page("login.html"))));
+app.get("/portal", (c) => (getSession(c) ? c.html(page("portal.html")) : c.redirect("/login")));
+
+// ---------- Staff sign-in ----------
+app.get("/auth/options", (c) => c.json({ google: googleConfigured(), demo: demoAccessEnabled() }));
+app.get("/auth/google", (c) => (googleConfigured() ? googleRedirect(c) : c.redirect("/login?error=google_not_configured")));
+app.get("/auth/google/callback", async (c) => {
+  const result = await googleCallback(c);
+  if ("error" in result) return c.redirect(`/login?error=${result.error}`);
+  startSession(c, { ...result, method: "google" });
+  console.log(`[auth] ${result.email} signed in with Google`);
+  return c.redirect("/portal");
+});
+app.post("/auth/demo", (c) => {
+  if (!demoAccessEnabled()) return c.redirect("/login?error=demo_off");
+  startSession(c, { email: "demo", name: "Demo reviewer", method: "demo" });
+  return c.redirect("/portal");
+});
+app.post("/auth/logout", (c) => {
+  endSession(c);
+  return c.redirect("/");
+});
+app.get("/api/me", (c) => {
+  const s = getSession(c);
+  return s ? c.json({ name: s.name, email: s.email, method: s.method }) : c.json({ error: "unauthorized" }, 401);
+});
+
+// The portal's review queue: approve an agent's draft, or send staff's own answer (which teaches a gap).
+// Demo access may act on demo mail only; real applicant mail needs a staff member signed in with Google.
+app.post("/api/portal/resolve", async (c) => {
+  const s = getSession(c);
+  if (!s) return c.json({ error: "Sign in first" }, 401);
+  const input = await c.req.json<{ ref?: string; action?: string; text?: string }>().catch(() => ({}) as never);
+  if (!input.ref) return c.json({ error: "Missing ref" }, 400);
+  if (s.method === "demo" && !isDemoEscalation(input.ref)) {
+    return c.json({ error: "Demo access can review demo mail only. Sign in with Google as staff to act on real applicant mail." }, 403);
+  }
+  const staff = s.method === "google" ? s.email : "the demo reviewer";
+  const decision = input.action === "approve" ? ({ approve: true } as const) : { text: input.text ?? "" };
+  const result = await resolveEscalation(input.ref, staff, decision, "portal").catch((err) => {
+    console.warn(`[portal] resolve ${input.ref} failed:`, err instanceof Error ? err.message : err);
+    return "failed" as const;
+  });
+  if (result === "approved" || result === "edited") return c.json({ ok: true, status: result });
+  const messages = { not_found: "This request no longer exists.", empty: "Write an answer first.", already_resolved: "Someone already resolved this request.", failed: "Sending failed; try again." };
+  return c.json({ error: messages[result] }, result === "failed" ? 502 : 409);
+});
 
 app.get("/api/state", (c) =>
   authorized(c)
@@ -137,7 +187,7 @@ const domainNow = () => getDomain() ?? DEMO_DOMAIN;
 app.get("/llms.txt", (c) =>
   c.text(
     [
-      "# Halden University (fictional) - Campus Desk",
+      "# Unicess at Halden University (fictional)",
       "",
       "> Email agents that answer prospective students and their AI assistants in seconds, at any hour.",
       "",
@@ -154,10 +204,10 @@ app.get("/llms.txt", (c) =>
 
 app.get("/.well-known/agent.json", (c) =>
   c.json({
-    name: "Halden University Campus Desk",
+    name: "Unicess at Halden University",
     description: "Email agents for admissions, international students, financial aid, housing and application completeness (fictional demo school).",
     protocol: "email",
-    structured_reply: { request: 'Include "Reply format: structured" in the email', format: "campus-desk/v1" },
+    structured_reply: { request: 'Include "Reply format: structured" in the email', format: "unicess/v1" },
     agents: DIRECTORY.map(([a, what]) => ({ address: `${a}@${domainNow()}`, answers: what })),
   }),
 );
@@ -170,9 +220,12 @@ app.post("/api/record", (c) => {
 });
 
 serve({ fetch: app.fetch, port: env.port }, (info) => {
-  const url = `http://localhost:${info.port}/?token=${dashboardToken}`;
-  console.log(`Campus Desk listening on http://localhost:${info.port}`);
-  console.log(`Dashboard: ${url}`);
+  const url = `http://localhost:${info.port}/`;
+  console.log(`Unicess listening on ${url}`);
+  console.log(`Live dashboard: http://localhost:${info.port}/live?token=${dashboardToken}`);
+  console.log(
+    `Staff portal sign-in: Google ${googleConfigured() ? "on" : "off (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)"}, demo access ${demoAccessEnabled() ? "on" : "off"}`,
+  );
   console.log(
     provider
       ? `Models: ${provider} (answers ${modelName("smart")}, routing ${modelName("fast")})`
@@ -180,7 +233,7 @@ serve({ fetch: app.fetch, port: env.port }, (info) => {
   );
   if (env.dryRun) console.log("DRY_RUN=1: replies are logged, not sent");
   else if (!env.primitiveApiKey) console.warn("PRIMITIVE_API_KEY is not set: replies will fail until it is");
-  // One command for a judge: the dashboard opens by itself. OPEN_BROWSER=0 turns this off.
+  // One command for a judge: the landing page opens by itself. OPEN_BROWSER=0 turns this off.
   if (process.env.OPEN_BROWSER !== "0" && !process.env.RAILWAY_ENVIRONMENT) {
     const [cmd, args] =
       process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];

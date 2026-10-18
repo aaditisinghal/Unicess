@@ -2,7 +2,7 @@
   "name": "unicess",
   "version": "0.1.0",
   "private": true,
-  "description": "Campus Desk: a team of university email agents on Primitive",
+  "description": "Unicess: a team of university email agents on Primitive",
   "type": "module",
   "engines": {
     "node": ">=22"

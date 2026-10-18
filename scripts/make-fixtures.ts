@@ -29,7 +29,7 @@ async function bankStatement(injected = false) {
   const { doc, page, regular, bold } = await newDoc();
   banner(page, bold, "SYNTHETIC DEMO DOCUMENT - NOT A REAL BANK STATEMENT");
   line(page, bold, "KAVERI NATIONAL BANK", 40, 750, 18);
-  line(page, regular, "Fictional bank for the Campus Desk demo", 40, 734, 9, MUTED);
+  line(page, regular, "Fictional bank for the Unicess demo", 40, 734, 9, MUTED);
   line(page, bold, "Account Statement", 40, 700, 13);
 
   const details: [string, string][] = [
@@ -70,7 +70,7 @@ async function bankStatement(injected = false) {
     page.drawText(hidden, { x: 40, y: y - 60, size: 1, font: regular, color: rgb(1, 1, 1) });
   }
 
-  line(page, regular, "Synthetic document generated for the Campus Desk hackathon demo. Kaveri National Bank and all", 40, 60, 8, MUTED);
+  line(page, regular, "Synthetic document generated for the Unicess hackathon demo. Kaveri National Bank and all", 40, 60, 8, MUTED);
   line(page, regular, "names, addresses and numbers on this page are fictional.", 40, 48, 8, MUTED);
   return doc.save();
 }
@@ -79,7 +79,7 @@ async function toeflReport() {
   const { doc, page, regular, bold } = await newDoc();
   banner(page, bold, "SYNTHETIC DEMO DOCUMENT - NOT ISSUED BY ETS");
   line(page, bold, "English Proficiency Score Report (sample)", 40, 750, 16);
-  line(page, regular, "Fictional score report for the Campus Desk demo", 40, 734, 9, MUTED);
+  line(page, regular, "Fictional score report for the Unicess demo", 40, 734, 9, MUTED);
 
   const details: [string, string][] = [
     ["Test", "TOEFL iBT"],
@@ -108,7 +108,7 @@ async function toeflReport() {
   }
   line(page, bold, "Total score: 95 / 120", 40, y - 34, 13);
 
-  line(page, regular, "Synthetic document generated for the Campus Desk hackathon demo; not a real score report.", 40, 60, 8, MUTED);
+  line(page, regular, "Synthetic document generated for the Unicess hackathon demo; not a real score report.", 40, 60, 8, MUTED);
   line(page, regular, "All names and numbers on this page are fictional.", 40, 48, 8, MUTED);
   return doc.save();
 }

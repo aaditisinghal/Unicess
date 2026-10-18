@@ -64,7 +64,13 @@ export async function escalate(input: {
   if (!(await createMemory(escalationKey(ref), record))) return;
 
   if (!staff) {
-    console.warn(`[escalation] ${ref} is waiting, but STAFF_ADDRESSES is empty, so no counselor was emailed`);
+    console.warn(`[escalation] ${ref} is waiting, but STAFF_ADDRESSES is empty, so it waits in the staff portal only`);
+    emit("escalation", `Waiting for staff review in the portal: ${request}`, {
+      student,
+      agent,
+      data: { ref, staff: null, draft, kind, request },
+      primitive: [`memories.set("escalation/${ref.slice(0, 14)}…", if_absent): waiting_on_human`],
+    });
     return;
   }
   const subject = `[${kind === "gap" ? "Answer needed" : "Approval needed"}] ${OFFICES[agent]}: request from ${student} (ref ${ref})`;
@@ -85,13 +91,13 @@ export async function escalate(input: {
           "--- End of draft ---",
         ]
   )
-    .concat(["", `${OFFICES[agent]} agent (${agent}@${domain}), Halden University Campus Desk`])
+    .concat(["", `${OFFICES[agent]} agent (${agent}@${domain}), Halden University, Unicess`])
     .join("\n");
 
   emit("escalation", kind === "gap" ? `Asked ${staff} for an answer ${agent}@ doesn't have: ${request}` : `Draft sent to ${staff} for approval: ${request}`, {
     student,
     agent,
-    data: { ref, staff, draft, kind },
+    data: { ref, staff, draft, kind, request },
     primitive: [
       `memories.set("escalation/${ref.slice(0, 14)}…", if_absent): waiting_on_human`,
       `client.send({ from: ${agent}@, to: ${staff} })${env.dryRun || isReplay(ref) ? " (demo email: not sent)" : ""}`,
@@ -120,19 +126,26 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
     return;
   }
   const ref = /\(ref ([^)\s]+)\)/.exec(email.subject ?? "")?.[1];
-  const stored = ref ? await readMemory<Escalation>(escalationKey(ref)) : null;
-  if (!ref || !stored) {
-    console.warn(`[escalation] mail from ${staff} doesn't reply to an open escalation ("${email.subject}")`);
-    return;
-  }
-
   const reply = newText(email.text ?? "");
-  const approved = /^approve\b/i.test(reply);
-  if (!approved && !reply) {
-    console.warn(`[escalation] ${ref}: empty reply from ${staff}; still waiting`);
-    return;
-  }
-  const answer = approved ? stored.value.draft : reply;
+  const result = ref ? await resolveEscalation(ref, staff, /^approve\b/i.test(reply) ? { approve: true } : { text: reply }) : "not_found";
+  if (result === "not_found") console.warn(`[escalation] mail from ${staff} doesn't reply to an open escalation ("${email.subject}")`);
+  else if (result === "empty") console.warn(`[escalation] ${ref}: empty reply from ${staff}; still waiting`);
+  else if (result === "already_resolved") console.log(`[escalation] ${ref} was already resolved; ignoring the reply from ${staff}`);
+}
+
+// Settles one escalation, from a staff email or from the staff portal: approve sends the agent's draft,
+// text sends (and, for a knowledge gap, teaches) the staff member's own answer. Only the first decision counts.
+export async function resolveEscalation(
+  ref: string,
+  staff: string,
+  decision: { approve: true } | { text: string },
+  via: "email" | "portal" = "email",
+): Promise<"approved" | "edited" | "not_found" | "empty" | "already_resolved"> {
+  const stored = await readMemory<Escalation>(escalationKey(ref));
+  if (!stored) return "not_found";
+  const approved = "approve" in decision;
+  const answer = approved ? stored.value.draft : decision.text.trim();
+  if (!answer) return "empty";
 
   // Claim it, so two staff replies (or a retried delivery) can't both send.
   let claimed = false;
@@ -145,10 +158,7 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
       return claimed ? { ...current, status: approved ? "approved" : "edited", resolvedAt: now } : current;
     },
   );
-  if (!claimed) {
-    console.log(`[escalation] ${ref} was already resolved; ignoring the reply from ${staff}`);
-    return;
-  }
+  if (!claimed) return "already_resolved";
 
   const { student, agent, domain, subject, messageId, references } = stored.value;
   // A staff answer to a knowledge gap becomes part of that office's knowledge. Approvals never do.
@@ -165,9 +175,9 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
   emit("approval", `${staff} ${approved ? "approved the draft" : "sent an edited answer"}; ${agent}@ replied to the student`, {
     student,
     agent,
-    data: { ref, staff, status: approved ? "approved" : "edited", text },
+    data: { ref, staff, status: approved ? "approved" : "edited", text, via },
     primitive: [
-      `isTrustedSender(email, { domain: "${staff.split("@")[1]}", sender }) → trusted`,
+      via === "portal" ? `staff portal: signed-in session (${staff})` : `isTrustedSender(email, { domain: "${staff.split("@")[1]}", sender }) → trusted`,
       `memories.set("escalation/…", if_version): claimed once, status ${approved ? "approved" : "edited"}`,
       `client.send({ from: ${agent}@, to: student, thread: inReplyTo })${env.dryRun || isReplay(ref) ? " (demo email: not sent)" : ""}`,
     ],
@@ -194,7 +204,10 @@ export async function handleStaffReply(email: ReceivedEmail, staff: string): Pro
     () => null,
     (task) => (task ? { ...task, status: "done", updatedAt: now } : task),
   );
+  return approved ? "approved" : "edited";
 }
+
+export const isDemoEscalation = isReplay;
 
 // The staff member's new text: everything above the quoted email.
 export function newText(body: string): string {

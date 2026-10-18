@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Unicess</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sans: "Geist", ui-sans-serif, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --paper: #f4f2ec; --panel: #fbfaf6; --rule: #dcd8cc; --rule-strong: #bdb8aa;
+    --ink: #16150f; --ink2: #3b392f; --muted: #6a665a; --faint: #969184;
+    --accent: #0b6e4f; --bad: #b42318; --bad-soft: #f7e3df; --warn: #96600a; --warn-soft: #f4ead3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+
+  /* Left: the ink side, the product in one statement */
+  .side { background: #0e0e0b; color: #f4f2ec; padding: 36px 48px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #000; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+  .brand img { width: 30px; height: 30px; display: block; }
+  .brand b { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+  .side h2 { margin: 0; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.08; letter-spacing: -0.035em; font-weight: 600; max-width: 520px; }
+  .side h2 em { font-style: normal; color: #3ccf91; }
+  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #2b2a23; margin-top: 40px; }
+  .facts div { padding: 16px 16px 0 0; }
+  .facts div + div { padding-left: 16px; border-left: 1px solid #2b2a23; }
+  .facts b { display: block; font: 600 26px/1 var(--mono); letter-spacing: -0.03em; }
+  .facts span { display: block; margin-top: 8px; font-size: 13px; color: #a29d90; }
+  .side .foot { font: 500 11.5px/1.5 var(--mono); color: #78736a; letter-spacing: .02em; }
+
+  /* Right: the sign-in column */
+  .main { display: flex; flex-direction: column; padding: 36px 48px; }
+  .top { display: flex; justify-content: flex-end; }
+  .top a { font-size: 13.5px; color: var(--muted); text-decoration: none; }
+  .top a:hover { color: var(--ink); }
+  .form { width: 100%; max-width: 400px; margin: auto; padding: 48px 0; }
+  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  h1 { margin: 16px 0 10px; font-size: 34px; line-height: 1.1; letter-spacing: -0.03em; font-weight: 600; }
+  .lead { margin: 0 0 32px; color: var(--ink2); }
+  .google { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; padding: 14px 16px; background: #fff; color: #1f1f1f; border: 1px solid var(--rule-strong); font: 600 15px/1 var(--sans); text-decoration: none; cursor: pointer; transition: border-color .15s, background .15s; }
+  .google:hover { border-color: var(--ink); background: #fafafa; }
+  .google svg { width: 18px; height: 18px; flex: none; }
+  .fine { margin: 14px 0 0; font-size: 12.5px; color: var(--muted); }
+  .alert { margin: 0 0 20px; padding: 11px 14px; border-left: 3px solid var(--bad); background: var(--bad-soft); color: var(--bad); font-size: 13.5px; }
+  .alert.info { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+  .alert[hidden] { display: none; }
+  .scope { list-style: none; margin: 28px 0 0; padding: 0; border-top: 1px solid var(--rule); }
+  .scope li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; color: var(--ink2); }
+  .scope li::before { content: ""; width: 8px; height: 8px; background: var(--accent); margin-top: 7px; }
+
+  /* Near the bottom: the demo bypass, deliberately quieter than Google */
+  .bypass { width: 100%; max-width: 400px; margin: 0 auto; padding-top: 18px; border-top: 1px dashed var(--rule-strong); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .bypass[hidden] { display: none; }
+  .bypass p { margin: 0; font-size: 13px; color: var(--muted); }
+  .bypass p b { display: block; color: var(--ink); font-weight: 600; font-size: 13.5px; }
+  .bypass button { font: 600 13.5px/1 var(--sans); padding: 10px 14px; background: transparent; color: var(--ink); border: 1px solid var(--ink); cursor: pointer; }
+  .bypass button:hover { background: var(--ink); color: var(--paper); }
+
+  @media (max-width: 900px) {
+    body { grid-template-columns: minmax(0, 1fr); }
+    .side { padding: 24px 16px 28px; }
+    .side h2 { font-size: 28px; margin-top: 28px; }
+    .facts, .side .foot { display: none; }
+    .main { padding: 20px 16px 28px; }
+    .form { padding: 28px 0 40px; }
+  }
+</style>
+</head>
+<body>
+  <aside class="side">
+    <a class="brand" href="/"><img src="/logo.svg" alt=""><b>Unicess</b></a>
+    <div>
+      <h2>Applicants answered in seconds. <em>Staff review only what needs a person.</em></h2>
+      <div class="facts">
+        <div><b>6.7 s</b><span>first reply</span></div>
+        <div><b>6</b><span>office agents</span></div>
+        <div><b>1</b><span>applicant file</span></div>
+      </div>
+    </div>
+    <div class="foot">Halden University staff portal</div>
+  </aside>
+
+  <main class="main">
+    <div class="top"><a href="/">Back to Unicess</a></div>
+    <div class="form">
+      <div class="eyebrow">Staff portal</div>
+      <h1>Sign in to Unicess</h1>
+      <p class="lead">Use your Halden University Google account. Access is limited to approved admissions staff.</p>
+      <div class="alert" id="alert" role="alert" hidden></div>
+      <a class="google" href="/auth/google">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continue with Google
+      </a>
+      <p class="fine">Unicess receives your name and email address from Google, and nothing else.</p>
+      <ul class="scope">
+        <li>Approve or edit drafts the agents send for review</li>
+        <li>Answer questions an office could not, once</li>
+        <li>Open any applicant's file, checklist and documents</li>
+      </ul>
+    </div>
+
+    <form class="bypass" id="bypass" method="post" action="/auth/demo">
+      <p><b>Judging the demo?</b>Skip Google and explore with sample data.</p>
+      <button type="submit">Continue with demo access</button>
+    </form>
+  </main>
+
+<script>
+// Explains why sign-in came back here, and hides demo access when the server turns it off.
+(() => {
+  const MESSAGES = {
+    google_not_configured: ["info", "Google sign-in is not set up on this server yet. Use demo access below to explore the portal."],
+    not_allowed: ["bad", "That Google account is not on this portal's staff list. Ask your admissions office to add it."],
+    expired: ["bad", "That sign-in attempt expired. Try again."],
+    cancelled: ["info", "Google sign-in was cancelled."],
+    google: ["bad", "Google could not confirm your account. Try again."],
+    demo_off: ["bad", "Demo access is turned off on this server."],
+  };
+  const code = new URLSearchParams(location.search).get("error");
+  const alert = document.getElementById("alert");
+  if (code && MESSAGES[code]) {
+    const [tone, text] = MESSAGES[code];
+    alert.className = `alert ${tone === "info" ? "info" : ""}`;
+    alert.textContent = text;
+    alert.hidden = false;
+  }
+  fetch("/auth/options").then((r) => r.json()).then((o) => { document.getElementById("bypass").hidden = !o.demo; }).catch(() => {});
+})();
+</script>
+</body>
+</html>

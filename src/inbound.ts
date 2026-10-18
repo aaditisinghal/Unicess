@@ -201,7 +201,7 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     text = `${text}\n\n${structuredBlock(json)}`;
     attachments = [
       {
-        filename: "campus-desk-reply.json",
+        filename: "unicess-reply.json",
         content_type: "application/json",
         content_base64: Buffer.from(JSON.stringify(json, null, 2)).toString("base64"),
       },
@@ -242,7 +242,7 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     primitive: [
       `client.reply(email, { from: ${agent}@ }, { idempotencyKey: "${idempotencyKey.slice(0, 18)}…" })${dryRun ? " (demo email: not sent)" : ""}`,
       "In-Reply-To / References set by the SDK, so it lands in the student's thread",
-      ...(attachments ? ["attachment: campus-desk-reply.json"] : []),
+      ...(attachments ? ["attachment: unicess-reply.json"] : []),
     ],
   });
 
