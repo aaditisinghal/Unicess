@@ -31,9 +31,10 @@ src/
   inbound.ts       verified email in: dedupe, loop guard, staff check, route by recipient
   memory.ts        Primitive Memories: get, compare-and-set with retry, seen/ dedupe        (step 2)
   cases.ts         case file shape, match or open by sender, checklist helpers           (step 2)
-  router.ts        ask@: classify topics, create tasks, merge sections, send one reply   (steps 2-3)
-  agents/run.ts    one runner for every department: role prompt + knowledge + case file (step 3)
-  knowledge/*.md   intl, admissions, finaid, counselor, housing                          (step 3)
+  router.ts        ask@: split an email into department tasks (Haiku, keyword fallback) (step 2)
+  agents.ts        one runner for every department: role + knowledge + case file (Sonnet) (step 3)
+  answer.ts        run departments in parallel, 30 s cut, merge in fixed order, save facts (step 3)
+  knowledge/*.md   ask, intl, admissions, finaid, housing, counselor                    (step 3)
   attachments.ts   download the tar.gz, unpack, PDF to Claude, fields into facts        (step 4)
   counselor.ts     checklist compare, missing-items email, mark received               (step 5)
   escalation.ts    draft to staff, APPROVE handling                                     (step 5)

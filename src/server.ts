@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import primitive, { PrimitiveWebhookError, WebhookVerificationError } from "@primitivedotdev/sdk";
 import { env } from "./env";
 import { handleInbound } from "./inbound";
+import { modelName, provider } from "./llm";
 
 const app = new Hono();
 
@@ -39,6 +40,11 @@ app.post("/webhooks/email", async (c) => {
 
 serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`Campus Desk listening on http://localhost:${info.port}`);
+  console.log(
+    provider
+      ? `Models: ${provider} (answers ${modelName("smart")}, routing ${modelName("fast")})`
+      : "No model key: routing by keywords, and offices can't write answers",
+  );
   if (env.dryRun) console.log("DRY_RUN=1: replies are logged, not sent");
   else if (!env.primitiveApiKey) console.warn("PRIMITIVE_API_KEY is not set: replies will fail until it is");
 });

@@ -1,4 +1,5 @@
 import type { ReceivedEmail } from "@primitivedotdev/sdk";
+import { answerEmail } from "./answer";
 import { type Agent, createTasks, isAgent, recordInbound } from "./cases";
 import { env } from "./env";
 import { createMemory } from "./memory";
@@ -46,22 +47,27 @@ export async function handleInbound(email: ReceivedEmail): Promise<void> {
     `[case] ${sender}: email ${caseFile.emails.length} on file, tasks for ${work.map((w) => `${w.agent}@`).join(", ")}`,
   );
 
-  // Build step 3 replaces this acknowledgement with the merged answer.
-  const text = [
-    `Hi, this is ${agent}@ at Halden University.`,
-    "",
-    `Your question is with ${work.map((w) => `${w.agent}@`).join(", ")}. A combined answer follows shortly.`,
-    "",
-    "(Campus Desk build step 2: routing.)",
-  ].join("\n");
+  const text = await answerEmail({
+    emailId: email.id,
+    student: sender,
+    subject: email.subject,
+    body,
+    caseFile,
+    work,
+    domain: ourDomain,
+  });
 
   // Replayed test emails (scripts/replay.ts) don't exist in Primitive, so they are logged instead of answered.
   if (env.dryRun || email.id.startsWith("replay_")) {
-    console.log(`[dry-run] ${agent}@ -> ${sender}:\n${text}`);
+    console.log(`[dry-run] ${agent}@ -> ${sender} after ${Date.now() - startedAt} ms:\n${text}`);
     return;
   }
 
   // The key makes a webhook retry of this event return the first reply instead of sending a second.
-  await mail().reply(email, { text }, { idempotencyKey: `${email.eventId}:${agent}:ack` });
-  console.log(`[reply] ${agent}@ -> ${sender} in ${Date.now() - startedAt} ms`);
+  await mail().reply(
+    email,
+    { text, from: `"Halden University" <${recipient}>` },
+    { idempotencyKey: `${email.eventId}:${agent}:answer` },
+  );
+  console.log(`[reply] ${agent}@ -> ${sender}: first reply in ${Date.now() - startedAt} ms`);
 }
