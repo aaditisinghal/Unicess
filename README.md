@@ -477,26 +477,9 @@ docs/                Write-up PDF and screenshots
 
 ---
 
-## Honest notes and limits
-
-- The student's AI agent in scenario 6 is a scripted stand-in for an outside agent such as ChatGPT or Claude. It talks to Halden only by email and decides from the JSON it parses.
-- Demo scenarios use replayed, signed webhooks and never send real email. Real email goes through the same code; the real handoff send was verified against the live account.
-- The office answers run in this server; the `ask@` task emails are the coordination record in Primitive, not a queue the offices wait on.
-- Reminders run on demand with a fast-forwarded date; in production they would run once a day.
-- On free Gemini quotas, replies can slow down under load; the follow-up path means no answer is lost.
-
----
-
 ## What's next
 
-The same setup fits any business whose buyers find it through AI assistants, ask many questions, send documents, touch several departments, and go with whoever replies first:
+What’s next: Any university integration, set up from the FAQ pages it already has. An MCP server, so AI assistants can call Unicess directly. WhatsApp and web chat, on the same agents. And two-way sync with admissions CRMs like Slate.<img width="2435" height="53" alt="image" src="https://github.com/user-attachments/assets/4974eda1-7ad8-4871-955e-027e74a5cf7a" />
 
-| Industry | Agent addresses |
-| --- | --- |
-| Mortgage and lending | `apply@`, `docs@`, `status@`, `underwriting@` |
-| Freight and logistics | `quotes@`, `tracking@`, `billing@`, `claims@` |
-| B2B manufacturing | `rfq@`, `samples@`, `orders@`, `compliance@` |
-| Insurance | `quote@`, `claims@`, `policy@` |
-| Rental leasing | `leasing@`, `apply@`, `maintenance@` |
 
 For a real university: FERPA compliance, a verified custom domain, daily scheduled reminders, and a connection to the real application portal.
