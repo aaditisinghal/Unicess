@@ -479,7 +479,8 @@ docs/                Write-up PDF and screenshots
 
 ## What's next
 
-What’s next: Any university integration, set up from the FAQ pages it already has. An MCP server, so AI assistants can call Unicess directly. WhatsApp and web chat, on the same agents. And two-way sync with admissions CRMs like Slate.<img width="2435" height="53" alt="image" src="https://github.com/user-attachments/assets/4974eda1-7ad8-4871-955e-027e74a5cf7a" />
-
-
-For a real university: FERPA compliance, a verified custom domain, daily scheduled reminders, and a connection to the real application portal.
+- **First pilot:** one international admissions office, where a slow reply can cost an enrollment. Agents draft and staff send at first, and we measure reply time, staff hours saved and students who enroll.
+- **Every office, one address:** after admissions, add financial aid, housing, the registrar and the bursar, so a student never has to work out who to email.
+- **More schools:** start with private universities and international recruitment teams under enrollment pressure, and plug into Slate, which most US admissions offices already use.
+- **A network for agents:** publish the `unicess/v1` format and list every school in agent directories, so an applicant's AI agent can ask 20 schools the same question and compare answers. Each new school makes Unicess more useful to the next.
+- **Beyond universities:** the same playbook fits any business with many departments and buyers who go with whoever replies first, such as mortgage, freight, insurance and leasing.
